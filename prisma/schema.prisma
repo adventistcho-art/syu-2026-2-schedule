@@ -1,0 +1,211 @@
+// 삼육대학교 성과관리종합지수 — Prisma 스키마
+// DB: Neon PostgreSQL (로컬·Vercel 공통)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── 종합지수 (12개) ──────────────────────────────────────────
+model CompositeIndex {
+  id          String  @id           // "10000", "20000", ...
+  name        String
+  category    String
+  description String
+  formula     String
+  targetScore Float   @default(100)
+  isPublic    Boolean @default(false)
+  year        Int
+
+  components  ComponentIndicator[]
+  trendData   IndexTrendData[]
+  sessions    IndexApproval[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── 구성지표 (종합지수 하위) ──────────────────────────────────
+model ComponentIndicator {
+  id          String  @id           // "10100", "10200", ...
+  indexId     String
+  name        String
+  weight      Float                 // 가중치 (%)
+  formula     String
+  targetValue Float?
+  unit        String
+
+  index        CompositeIndex   @relation(fields: [indexId], references: [id])
+  subIndicators SubIndicator[]
+  trendData    ComponentTrendData[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── 하위지표 (실적 입력 단위) ────────────────────────────────
+model SubIndicator {
+  id          String  @id           // "10101", "10102", ...
+  componentId String
+  name        String
+  description String?
+  variableKey String                // A, B, C ...
+  deptName    String
+  unit        String
+  inputType   String                // "MANUAL" | "MASTER_AUTO"
+  masterCode  String?               // ENROLLED_STUDENTS_UG 등
+
+  component   ComponentIndicator @relation(fields: [componentId], references: [id])
+  records     PerformanceRecord[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── 실적 기록 (연도별, 목표/실적 분리 저장) ───────────────────
+model PerformanceRecord {
+  id             String   @id @default(cuid())
+  subIndicatorId String
+  year           Int
+  targetValue    Float?
+  actualValue    Float?
+  status         String   @default("DRAFT") // DRAFT | SUBMITTED | APPROVED
+  submittedBy    String?                    // 작성자명
+  submittedAt    DateTime?
+  approvedBy     String?
+  approvedAt     DateTime?
+  note           String?
+
+  subIndicator  SubIndicator @relation(fields: [subIndicatorId], references: [id])
+  editLogs      EditLog[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([subIndicatorId, year])
+}
+
+// ─── 종합지수 추이 데이터 ──────────────────────────────────────
+model IndexTrendData {
+  id       String @id @default(cuid())
+  indexId  String
+  year     Int
+  target   Float?
+  actual   Float?
+
+  index    CompositeIndex @relation(fields: [indexId], references: [id])
+
+  @@unique([indexId, year])
+}
+
+// ─── 구성지표 추이 데이터 ──────────────────────────────────────
+model ComponentTrendData {
+  id          String @id @default(cuid())
+  componentId String
+  year        Int
+  target      Float?
+  actual      Float?
+
+  component   ComponentIndicator @relation(fields: [componentId], references: [id])
+
+  @@unique([componentId, year])
+}
+
+// ─── 연도별 세션 (OPEN/CLOSED/APPROVED) ──────────────────────
+model YearSession {
+  year      Int      @id
+  status    String   @default("OPEN")   // OPEN | CLOSED | APPROVED
+  openedAt  String                      // ISO date string
+  deadline  String?                     // ISO date string or null
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 연도별 승인 상태 ──────────────────────────────────────────
+model IndexApproval {
+  id       String @id @default(cuid())
+  indexId  String
+  year     Int
+  status   String  @default("COLLECTING") // COLLECTING | PENDING | APPROVED
+  isPublic Boolean @default(false)
+
+  index    CompositeIndex @relation(fields: [indexId], references: [id])
+
+  @@unique([indexId, year])
+}
+
+// ─── 수정 이력 (Audit Log) ────────────────────────────────────
+model EditLog {
+  id        String   @id @default(cuid())
+  recordId  String
+  prevValue Float?
+  newValue  Float?
+  editedBy  String
+  reason    String
+  editedAt  DateTime @default(now())
+
+  record    PerformanceRecord @relation(fields: [recordId], references: [id])
+}
+
+// ─── 글로벌 마스터 코드 (자동 연동값) ────────────────────────
+model MasterCode {
+  id        String   @id @default(cuid())
+  code      String
+  name      String
+  value     Float
+  year      Int
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, year])
+}
+
+// ─── 사용자 (주부서 = department) ─────────────────────────────
+model User {
+  id            String   @id @default(uuid())
+  /// cho.syu.my username 과 동일 역할
+  employeeId    String   @unique
+  name          String
+  /// 주부서 = primaryDept || phoneDept
+  department    String
+  role          String   @default("USER") // ADMIN | USER
+  /// cho.syu.my account-access-map 의 팀장 체크 (isTeamLeader)
+  isTeamLeader  Boolean  @default(false)
+  email         String?
+  /// 전화부 상위부서
+  phoneParent   String?
+  /// 전화부 실무부서
+  phoneDept     String?
+  /// 내선번호 (숫자만)
+  phoneExt      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phoneParent, phoneDept, name, phoneExt])
+  @@map("users")
+}
+
+// ─── 학사/부서 일정 (2026-2학기 통합) ─────────────────────────
+// category: ACADEMIC | CHAPEL | STUDENT | ADMISSION | DEPT | HOLIDAY
+// status: DRAFT(부서 취합중) | PUBLISHED(전체일정 반영)
+model Event {
+  id            Int       @id @default(autoincrement())
+  title         String
+  category      String
+  dept          String
+  startDate     DateTime
+  endDate       DateTime
+  location      String?
+  contact       String?
+  description   String?
+  status        String    @default("DRAFT")
+  createdById   String?
+  createdByName String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
