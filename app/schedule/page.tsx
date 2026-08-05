@@ -8,6 +8,7 @@ import { CalendarDays, ClipboardList, LogOut } from "lucide-react";
 import StatCards from "@/components/schedule/StatCards";
 import SemesterCalendar from "@/components/schedule/SemesterCalendar";
 import EventForm from "@/components/schedule/EventForm";
+import DeptEventPanel from "@/components/schedule/DeptEventPanel";
 import EventTable from "@/components/schedule/EventTable";
 import EventDetailDialog from "@/components/schedule/EventDetailDialog";
 import EventEditDialog from "@/components/schedule/EventEditDialog";
@@ -195,6 +196,12 @@ export default function SchedulePage() {
             <EventForm
               department={isAdmin ? adminDept || department : department}
               isAdmin={!!isAdmin}
+            />
+            <DeptEventPanel
+              department={isAdmin ? adminDept || department : department}
+              isAdmin={!!isAdmin}
+              onSelectEvent={setSelected}
+              onEditEvent={setEditing}
             />
           </div>
         )}
