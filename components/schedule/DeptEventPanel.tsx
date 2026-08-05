@@ -6,6 +6,7 @@ import type { ScheduleEvent } from "@/lib/schedule/types";
 import { formatPeriod, toDateKey } from "@/lib/schedule/types";
 import { displayAuthor } from "@/lib/schedule/display";
 import { canManageEvent } from "@/lib/schedule/permissions";
+import { useWriteAccess } from "@/lib/schedule/useWriteAccess";
 
 type Props = {
   department: string;
@@ -34,6 +35,8 @@ export default function DeptEventPanel({
   onEditEvent,
 }: Props) {
   const queryClient = useQueryClient();
+  const { data: writeAccess } = useWriteAccess();
+  const canWrite = Boolean(writeAccess?.allowed);
 
   const { data: events = [], isLoading, error } = useQuery({
     queryKey: ["events", "dept", department],
@@ -87,7 +90,8 @@ export default function DeptEventPanel({
       {sorted.length > 0 && (
         <ul className="divide-y divide-slate-100">
           {sorted.map((ev) => {
-            const canManage = canManageEvent(ev, department, isAdmin);
+            const canManage =
+              canWrite && canManageEvent(ev, department, isAdmin);
             return (
               <li
                 key={ev.id}

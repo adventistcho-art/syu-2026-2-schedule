@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import {
+  CAMPUS_IP_DENIED_MESSAGE,
+  canWriteScheduleFromRequest,
+} from "@/lib/auth/campusIp";
 import { createEventSchema } from "@/lib/schedule/schemas";
 
 function parseDayStart(dateStr: string) {
@@ -75,6 +79,14 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const writeAccess = await canWriteScheduleFromRequest();
+  if (!writeAccess.allowed) {
+    return NextResponse.json(
+      { error: CAMPUS_IP_DENIED_MESSAGE, ip: writeAccess.ip },
+      { status: 403 }
+    );
   }
 
   let body: unknown;

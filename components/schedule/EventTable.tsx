@@ -12,6 +12,7 @@ import {
   displayDept,
 } from "@/lib/schedule/display";
 import { canManageEvent } from "@/lib/schedule/permissions";
+import { useWriteAccess } from "@/lib/schedule/useWriteAccess";
 import EventEditDialog from "@/components/schedule/EventEditDialog";
 
 type Props = {
@@ -30,6 +31,8 @@ export default function EventTable({
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
   const queryClient = useQueryClient();
+  const { data: writeAccess } = useWriteAccess();
+  const canWrite = Boolean(writeAccess?.allowed);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -81,7 +84,8 @@ export default function EventTable({
             </thead>
             <tbody>
               {filtered.map((ev) => {
-                const canManage = canManageEvent(ev, department, isAdmin);
+                const canManage =
+                  canWrite && canManageEvent(ev, department, isAdmin);
                 return (
                   <tr
                     key={ev.id}

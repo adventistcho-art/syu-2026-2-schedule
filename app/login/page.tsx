@@ -82,10 +82,10 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-[#003366] mb-2">
-              학사일정 통합 시스템
+              부서별 주요일정 관리
             </h1>
             <p className="text-sm text-slate-600">
-              삼육대학교 2026학년도 2학기 · 전화번호부 로그인
+              삼육대학교 2026학년도 2학기
             </p>
           </div>
 
@@ -170,23 +170,6 @@ export default function LoginPage() {
               {isLoading ? "로그인 중..." : "로그인"}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-slate-50 rounded-lg">
-            <p className="text-xs font-semibold text-slate-700 mb-2">
-              로그인 예시
-            </p>
-            <div className="space-y-1 text-xs text-slate-600">
-              <p>
-                · 학사지원팀(교무처) / 이성영 /{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded">3150</code>
-              </p>
-              <p>
-                · 기획팀(기획처) / 조재림 /{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded">3395</code>
-                <span className="text-slate-400"> (관리자)</span>
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

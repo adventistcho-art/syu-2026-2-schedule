@@ -11,6 +11,7 @@ import {
   displayDept,
 } from "@/lib/schedule/display";
 import { canManageEvent } from "@/lib/schedule/permissions";
+import { useWriteAccess } from "@/lib/schedule/useWriteAccess";
 
 type Props = {
   event: ScheduleEvent | null;
@@ -28,6 +29,8 @@ export default function EventDetailDialog({
   onEdit,
 }: Props) {
   const queryClient = useQueryClient();
+  const { data: writeAccess } = useWriteAccess(Boolean(event));
+  const canWrite = Boolean(writeAccess?.allowed);
 
   const delMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -43,7 +46,8 @@ export default function EventDetailDialog({
 
   if (!event) return null;
 
-  const canManage = canManageEvent(event, department, isAdmin);
+  const canManage =
+    canWrite && canManageEvent(event, department, isAdmin);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

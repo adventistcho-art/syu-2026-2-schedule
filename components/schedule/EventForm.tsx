@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createEventSchema, type CreateEventInput } from "@/lib/schedule/schemas";
+import { useWriteAccess } from "@/lib/schedule/useWriteAccess";
 
 type Props = {
   department: string;
@@ -12,7 +13,10 @@ type Props = {
 
 export default function EventForm({ department }: Props) {
   const queryClient = useQueryClient();
+  const { data: writeAccess, isLoading: writeLoading } = useWriteAccess();
+  const canWrite = Boolean(writeAccess?.allowed);
   const {
+
     register,
     handleSubmit,
     reset,
@@ -75,9 +79,26 @@ export default function EventForm({ department }: Props) {
           등록하면 즉시 전체 캘린더에 반영됩니다.
         </p>
       </div>
+      {writeAccess && !writeAccess.allowed && (
+        <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          일정 입력은 교내망(
+          {writeAccess.range || "210.94.224.1 ~ 210.94.255.254"})에서만
+          가능합니다.
+          {writeAccess.ip ? (
+            <span className="block text-xs text-amber-800/80 mt-1">
+              현재 접속 IP: {writeAccess.ip}
+            </span>
+          ) : null}
+        </div>
+      )}
       <form
-        onSubmit={handleSubmit((data) => mutation.mutate(data))}
-        className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4"
+        onSubmit={handleSubmit((data) => {
+          if (!canWrite) return;
+          mutation.mutate(data);
+        })}
+        className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-4 ${
+          !canWrite && !writeLoading ? "opacity-60" : ""
+        }`}
       >
         <div className="md:col-span-2">
           <label className="block text-sm font-semibold mb-1">작성 부서명 *</label>
@@ -97,6 +118,7 @@ export default function EventForm({ department }: Props) {
           <label className="block text-sm font-semibold mb-1">일정/행사명 *</label>
           <input
             {...register("title")}
+            disabled={!canWrite}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
             placeholder="예: Capstone Design 경진대회"
           />
@@ -112,6 +134,7 @@ export default function EventForm({ department }: Props) {
             min="2026-09-01"
             max="2027-02-28"
             {...register("startDate")}
+            disabled={!canWrite}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
           />
           {errors.startDate && (
@@ -126,6 +149,7 @@ export default function EventForm({ department }: Props) {
             min="2026-09-01"
             max="2027-02-28"
             {...register("endDate")}
+            disabled={!canWrite}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
           />
           {errors.endDate && (
@@ -137,6 +161,7 @@ export default function EventForm({ department }: Props) {
           <label className="block text-sm font-semibold mb-1">장소</label>
           <input
             {...register("location")}
+            disabled={!canWrite}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
             placeholder="예: 대강당"
           />
@@ -147,6 +172,7 @@ export default function EventForm({ department }: Props) {
           <textarea
             rows={3}
             {...register("description")}
+            disabled={!canWrite}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
             placeholder="사업 목적, 대상, 주요 내용 등"
           />
@@ -166,6 +192,7 @@ export default function EventForm({ department }: Props) {
         <div className="md:col-span-2 flex justify-end gap-2 pt-2">
           <button
             type="button"
+            disabled={!canWrite}
             onClick={() =>
               reset({
                 dept: department,
@@ -177,13 +204,13 @@ export default function EventForm({ department }: Props) {
                 description: "",
               })
             }
-            className="px-4 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
+            className="px-4 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-50"
           >
             초기화
           </button>
           <button
             type="submit"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !canWrite || writeLoading}
             className="px-5 py-2 text-sm rounded-lg bg-[#003366] text-white hover:bg-[#002244] disabled:opacity-50"
           >
             {mutation.isPending ? "저장 중..." : "일정 등록"}
