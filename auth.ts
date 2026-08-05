@@ -10,25 +10,23 @@ type AuthUser = {
   employeeId: string;
   role: "ADMIN" | "USER";
   department: string;
+  /** 전화번호부 F열 기준 전체일정 게시 권한 */
   isTeamLeader: boolean;
   canPublishToOverall: boolean;
 };
 
-async function toAuthUser(
-  user: {
-    id: string;
-    name: string;
-    employeeId: string;
-    role: string;
-    department: string;
-  },
-  claimLeader: boolean
-): Promise<AuthUser> {
+async function toAuthUser(user: {
+  id: string;
+  name: string;
+  employeeId: string;
+  role: string;
+  department: string;
+  isTeamLeader: boolean;
+}): Promise<AuthUser> {
   const role = user.role as "ADMIN" | "USER";
   const canPublishToOverall = await resolveCanPublish({
     role,
-    department: user.department,
-    isTeamLeader: claimLeader,
+    isTeamLeader: user.isTeamLeader,
   });
   return {
     id: user.id,
@@ -36,16 +34,9 @@ async function toAuthUser(
     employeeId: user.employeeId,
     role,
     department: user.department,
-    isTeamLeader: claimLeader,
+    isTeamLeader: user.isTeamLeader,
     canPublishToOverall,
   };
-}
-
-function parseDutyRole(raw: unknown): boolean {
-  const v = String(raw || "")
-    .trim()
-    .toLowerCase();
-  return v === "leader" || v === "팀장" || v === "true" || v === "1";
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -58,18 +49,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         phoneDept: { label: "실무부서", type: "text" },
         name: { label: "이름", type: "text" },
         phoneExt: { label: "내선", type: "text" },
-        /** 로그인 선택: leader | member (맵 isTeamLeader와 무관) */
-        dutyRole: { label: "직책", type: "text" },
         /** 개발용 사번 우회 (UI 숨김) */
         employeeId: { label: "사번", type: "text" },
       },
       async authorize(credentials) {
-        const claimLeader = parseDutyRole(credentials?.dutyRole);
         const employeeId = String(credentials?.employeeId || "").trim();
         if (employeeId) {
           const user = await prisma.user.findUnique({ where: { employeeId } });
           if (!user) return null;
-          return toAuthUser(user, claimLeader);
+          return toAuthUser(user);
         }
 
         const phoneParent = String(credentials?.phoneParent || "").trim();
@@ -87,7 +75,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
         if (!user) return null;
 
-        return toAuthUser(user, claimLeader);
+        return toAuthUser(user);
       },
     }),
   ],

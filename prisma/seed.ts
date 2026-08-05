@@ -1,8 +1,8 @@
 /**
  * 삼육대학교 성과관리종합지수 — DB 시드 스크립트
- * realData.ts의 마스터 데이터를 SQLite DB에 초기 적재합니다.
- * + 2026-2학기 공식 학사주요일정 / 테스트 사용자
- * + cho.syu.my 계정 맵 스냅샷 (실무부서·이름·내선 로그인)
+ * + 2026-2학기 공식 학사주요일정
+ * + 2026-1 전화번호부 로그인 계정 (CHO 맵 미사용)
+ * + 관리자 admin001 유지
  *
  * 실행: npx tsx prisma/seed.ts
  */
@@ -18,26 +18,22 @@ import {
 
 const prisma = new PrismaClient();
 
-type MapSnapshotAccount = {
-  username: string;
+type PhonebookAccount = {
+  employeeId: string;
   name: string;
-  email?: string | null;
-  primaryDept?: string | null;
+  department: string;
   phoneParent: string;
   phoneDept: string;
   phoneExt: string;
-  isTeamLeader: boolean;
-  role: string;
+  canPublishToOverall?: boolean;
+  isTeamLeader?: boolean;
+  role?: string;
 };
 
-function loadMapSnapshot(): MapSnapshotAccount[] {
-  const file = path.join(
-    process.cwd(),
-    "data",
-    "account-access-map.snapshot.json"
-  );
+function loadPhonebookAccounts(): PhonebookAccount[] {
+  const file = path.join(process.cwd(), "data", "phonebook-2026-1.json");
   const raw = JSON.parse(readFileSync(file, "utf8")) as {
-    accounts: MapSnapshotAccount[];
+    accounts: PhonebookAccount[];
   };
   return raw.accounts ?? [];
 }
@@ -227,66 +223,76 @@ async function main() {
   }
   console.log("  ✅ 세션 초기화 완료\n");
 
-  // 4. 사용자 — 로컬 일정 테스트 + 계정 맵 스냅샷
+  // 4. 사용자 — 관리자 + 전화번호부 (CHO 맵 제거)
   console.log("👤 사용자 적재 중...");
-  for (const u of SEED_USERS) {
+  const adminUsers = SEED_USERS.filter((u) => u.role === "ADMIN");
+  const phonebook = loadPhonebookAccounts();
+  const keepIds = new Set<string>([
+    ...adminUsers.map((u) => u.employeeId),
+    ...phonebook.map((a) => a.employeeId),
+  ]);
+
+  const removed = await prisma.user.deleteMany({
+    where: { employeeId: { notIn: Array.from(keepIds) } },
+  });
+  console.log(`  🗑️ CHO/구계정 ${removed.count}명 삭제`);
+
+  for (const u of adminUsers) {
     await prisma.user.upsert({
       where: { employeeId: u.employeeId },
       update: {
         name: u.name,
         department: u.department,
         role: u.role,
-        isTeamLeader: u.isTeamLeader,
+        isTeamLeader: true,
         phoneParent: u.phoneParent,
         phoneDept: u.phoneDept,
         phoneExt: u.phoneExt,
+        email: null,
       },
       create: {
         employeeId: u.employeeId,
         name: u.name,
         department: u.department,
         role: u.role,
-        isTeamLeader: u.isTeamLeader,
+        isTeamLeader: true,
         phoneParent: u.phoneParent,
         phoneDept: u.phoneDept,
         phoneExt: u.phoneExt,
       },
     });
   }
-  console.log(`  ✅ 로컬 테스트 사용자 ${SEED_USERS.length}명`);
+  console.log(`  ✅ 관리자 ${adminUsers.length}명`);
 
-  const mapAccounts = loadMapSnapshot();
-  let mapCount = 0;
-  for (const a of mapAccounts) {
-    const department = (a.primaryDept || a.phoneDept || "").trim();
-    if (!department) continue;
+  let pbCount = 0;
+  for (const a of phonebook) {
+    const canPublish = Boolean(a.canPublishToOverall ?? a.isTeamLeader);
     await prisma.user.upsert({
-      where: { employeeId: a.username },
+      where: { employeeId: a.employeeId },
       update: {
         name: a.name,
-        department,
-        role: a.role === "ADMIN" ? "ADMIN" : "USER",
-        isTeamLeader: a.isTeamLeader,
-        email: a.email ?? null,
+        department: a.department,
+        role: "USER",
+        isTeamLeader: canPublish,
+        email: null,
         phoneParent: a.phoneParent,
         phoneDept: a.phoneDept,
         phoneExt: a.phoneExt,
       },
       create: {
-        employeeId: a.username,
+        employeeId: a.employeeId,
         name: a.name,
-        department,
-        role: a.role === "ADMIN" ? "ADMIN" : "USER",
-        isTeamLeader: a.isTeamLeader,
-        email: a.email ?? null,
+        department: a.department,
+        role: "USER",
+        isTeamLeader: canPublish,
         phoneParent: a.phoneParent,
         phoneDept: a.phoneDept,
         phoneExt: a.phoneExt,
       },
     });
-    mapCount += 1;
+    pbCount += 1;
   }
-  console.log(`  ✅ 계정 맵 스냅샷 ${mapCount}명 완료\n`);
+  console.log(`  ✅ 전화번호부 계정 ${pbCount}명 완료\n`);
 
   // 5. 공식 학사주요일정 (2026.09~2027.02)
   console.log("📆 학사주요일정 시드 중...");

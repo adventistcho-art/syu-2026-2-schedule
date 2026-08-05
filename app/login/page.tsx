@@ -12,15 +12,12 @@ type DeptOption = {
   value: string;
 };
 
-type DutyRole = "leader" | "member";
-
 export default function LoginPage() {
   const router = useRouter();
   const [options, setOptions] = useState<DeptOption[]>([]);
   const [deptValue, setDeptValue] = useState("");
   const [name, setName] = useState("");
   const [phoneExt, setPhoneExt] = useState("");
-  const [dutyRole, setDutyRole] = useState<DutyRole>("member");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +60,6 @@ export default function LoginPage() {
         phoneDept: selected.phoneDept,
         name: name.trim(),
         phoneExt: phoneExt.trim(),
-        dutyRole,
         redirect: false,
       });
 
@@ -89,7 +85,7 @@ export default function LoginPage() {
               학사일정 통합 시스템
             </h1>
             <p className="text-sm text-slate-600">
-              삼육대학교 2026학년도 2학기 · 계정 맵 로그인
+              삼육대학교 2026학년도 2학기 · 전화번호부 로그인
             </p>
           </div>
 
@@ -159,53 +155,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <fieldset>
-              <legend className="block text-sm font-medium text-slate-700 mb-2">
-                로그인 역할
-              </legend>
-              <div className="grid grid-cols-2 gap-2">
-                <label
-                  className={`flex items-center justify-center gap-2 px-3 py-3 text-sm rounded-lg border cursor-pointer ${
-                    dutyRole === "member"
-                      ? "border-[#003366] bg-blue-50 text-[#003366] font-semibold"
-                      : "border-slate-200 text-slate-600"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="dutyRole"
-                    value="member"
-                    checked={dutyRole === "member"}
-                    onChange={() => setDutyRole("member")}
-                    className="sr-only"
-                  />
-                  팀원
-                </label>
-                <label
-                  className={`flex items-center justify-center gap-2 px-3 py-3 text-sm rounded-lg border cursor-pointer ${
-                    dutyRole === "leader"
-                      ? "border-[#003366] bg-blue-50 text-[#003366] font-semibold"
-                      : "border-slate-200 text-slate-600"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="dutyRole"
-                    value="leader"
-                    checked={dutyRole === "leader"}
-                    onChange={() => setDutyRole("leader")}
-                    className="sr-only"
-                  />
-                  팀장
-                </label>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                팀장으로 로그인하면 「전체일정으로 보내기」가 가능합니다. 맵
-                팀장 여부와 무관합니다. 실무부서에 맵 팀장이 없으면 팀원도 보낼
-                수 있습니다.
-              </p>
-            </fieldset>
-
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
                 {error}
@@ -224,20 +173,17 @@ export default function LoginPage() {
 
           <div className="mt-6 p-4 bg-slate-50 rounded-lg">
             <p className="text-xs font-semibold text-slate-700 mb-2">
-              로컬 테스트 예시
+              로그인 예시
             </p>
             <div className="space-y-1 text-xs text-slate-600">
               <p>
-                · 교무처(학사지원팀) / 이성영 /{" "}
+                · 학사지원팀(교무처) / 이성영 /{" "}
                 <code className="bg-white px-1.5 py-0.5 rounded">3150</code>
               </p>
               <p>
-                · 교목처(교목처) / 정채영 /{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded">3333</code>
-              </p>
-              <p>
-                · 일정 더미: 교무처(교무처) / 이교무 /{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded">3101</code>
+                · 기획처(기획처) / 김관리 /{" "}
+                <code className="bg-white px-1.5 py-0.5 rounded">3390</code>
+                <span className="text-slate-400"> (관리자)</span>
               </p>
             </div>
           </div>

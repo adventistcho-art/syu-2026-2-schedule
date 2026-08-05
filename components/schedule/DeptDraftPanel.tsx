@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Send, Trash2, UserRound } from "lucide-react";
+import { Pencil, Send, Trash2, UserRound, X } from "lucide-react";
 import type { ScheduleEvent } from "@/lib/schedule/types";
 import { formatPeriod, toDateKey } from "@/lib/schedule/types";
 import { CATEGORY_COLORS, CATEGORY_LABEL } from "@/lib/schedule/constants";
@@ -11,7 +11,7 @@ import EventEditDialog from "@/components/schedule/EventEditDialog";
 type Props = {
   department: string;
   isAdmin: boolean;
-  /** 로그인 역할 팀장 또는 무팀장 실무부서 → 보내기 가능 */
+  /** 전화번호부 F열 지정자 또는 관리자 */
   canPublish: boolean;
 };
 
@@ -34,6 +34,7 @@ export default function DeptDraftPanel({
   const [selected, setSelected] = useState<number[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { data: drafts = [], isLoading } = useQuery({
     queryKey: ["events", "draft", department],
@@ -58,6 +59,7 @@ export default function DeptDraftPanel({
   const allIds = drafts.map((d) => d.id);
   const allSelected =
     allIds.length > 0 && allIds.every((id) => selected.includes(id));
+  const pendingIds = selected.length > 0 ? selected : allIds;
 
   const toggleAll = () => {
     setSelected(allSelected ? [] : allIds);
@@ -85,11 +87,13 @@ export default function DeptDraftPanel({
     },
     onSuccess: async (data) => {
       setSelected([]);
+      setConfirmOpen(false);
       setMessage(`${data.publishedCount}건을 전체일정으로 제출했습니다.`);
       await queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (err) => {
       setMessage((err as Error).message);
+      setConfirmOpen(false);
     },
   });
 
@@ -112,8 +116,8 @@ export default function DeptDraftPanel({
             {department} 부서 취합 일정 (초안)
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            담당자가 등록한 일정이 아래에 모입니다. 팀장으로 로그인한 경우, 또는
-            실무부서에 맵 팀장이 없는 경우 「전체일정으로 보내기」가 가능합니다.
+            담당자가 등록한 일정이 아래에 모입니다. 전화번호부에 「전체일정으로
+            보내기」로 지정된 분만 전체일정으로 제출할 수 있습니다.
           </p>
         </div>
         {canPublish ? (
@@ -121,31 +125,20 @@ export default function DeptDraftPanel({
             type="button"
             disabled={drafts.length === 0 || publishMutation.isPending}
             onClick={() => {
-              const ids = selected.length > 0 ? selected : allIds;
-              if (
-                confirm(
-                  selected.length > 0
-                    ? `선택한 ${ids.length}건을 전체일정으로 제출할까요?`
-                    : `부서 초안 전체 ${ids.length}건을 전체일정으로 제출할까요?`
-                )
-              ) {
-                setMessage(null);
-                publishMutation.mutate(ids);
-              }
+              setMessage(null);
+              setConfirmOpen(true);
             }}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40"
           >
             <Send className="w-4 h-4" />
-            {publishMutation.isPending
-              ? "제출 중..."
-              : selected.length > 0
-                ? `선택 ${selected.length}건 전체일정으로 보내기`
-                : "전체일정으로 보내기"}
+            {selected.length > 0
+              ? `선택 ${selected.length}건 전체일정으로 보내기`
+              : "전체일정으로 보내기"}
           </button>
         ) : (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-w-xs">
-            전체일정 제출 권한이 없습니다. 팀장으로 다시 로그인하거나 팀장에게
-            요청하세요.
+            전체일정 제출 권한이 없습니다. 부서의 「전체일정으로 보내기」
+            담당자에게 요청하세요.
           </p>
         )}
       </div>
@@ -251,6 +244,56 @@ export default function DeptDraftPanel({
           </>
         )}
       </div>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md bg-white rounded-xl shadow-xl border border-slate-200 p-5"
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <h4 className="text-lg font-bold text-[#003366]">
+                전체일정으로 보내기
+              </h4>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                aria-label="닫기"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed">
+              소속 팀 일정을 취합한 뒤, 아래{" "}
+              <strong className="text-[#003366]">「전체로 보내기」</strong>를
+              눌러야 전체 일정으로 반영됩니다.
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              {department} 초안 {pendingIds.length}건이 제출 대상입니다.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={publishMutation.isPending || pendingIds.length === 0}
+                onClick={() => publishMutation.mutate(pendingIds)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40"
+              >
+                <Send className="w-4 h-4" />
+                {publishMutation.isPending ? "제출 중..." : "전체로 보내기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <EventEditDialog
         event={editing}

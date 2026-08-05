@@ -7,13 +7,12 @@ export type AppUser = {
   employeeId: string;
   role: "ADMIN" | "USER";
   department: string;
-  /** 로그인 시 선택한 팀장/팀원 (맵과 무관) */
+  /** 전화번호부 F열 기준 전체일정 게시 권한 */
   isTeamLeader: boolean;
-  /** 전체일정 보내기 가능 여부 */
   canPublishToOverall: boolean;
 };
 
-export { deptHasMapLeader, resolveCanPublish } from "@/lib/auth/publishPermission";
+export { resolveCanPublish } from "@/lib/auth/publishPermission";
 
 export async function getSessionUser(): Promise<AppUser | null> {
   const session = await auth();
@@ -39,7 +38,6 @@ export async function getSessionUser(): Promise<AppUser | null> {
       ? user.canPublishToOverall
       : await resolveCanPublish({
           role: user.role,
-          department: user.department,
           isTeamLeader,
         });
 
@@ -54,7 +52,6 @@ export async function getSessionUser(): Promise<AppUser | null> {
   };
 }
 
-/** 동기 판정(세션에 이미 계산된 값 기준). API에서는 resolveCanPublish 재검증 권장 */
 export function canPublishToOverall(user: AppUser): boolean {
   return user.canPublishToOverall;
 }

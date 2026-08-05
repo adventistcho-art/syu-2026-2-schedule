@@ -12,7 +12,7 @@ const publishSchema = z.object({
 /**
  * POST /api/events/publish
  * 부서 DRAFT → 전체일정(PUBLISHED)
- * 권한: 로그인 시 팀장 선택 / ADMIN / 실무부서에 맵 팀장 없음
+ * 권한: ADMIN 또는 전화번호부 F열 지정자
  */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -22,14 +22,13 @@ export async function POST(req: NextRequest) {
 
   const allowed = await resolveCanPublish({
     role: user.role,
-    department: user.department,
     isTeamLeader: user.isTeamLeader,
   });
   if (!allowed) {
     return NextResponse.json(
       {
         error:
-          "전체일정으로 보내기 권한이 없습니다. 팀장으로 로그인하거나, 팀장에게 요청하세요.",
+          "전체일정으로 보내기 권한이 없습니다. 부서의 담당자에게 요청하세요.",
       },
       { status: 403 }
     );

@@ -113,8 +113,8 @@ export default function SchedulePage() {
               {isAdmin
                 ? " (관리자)"
                 : isTeamLeader
-                  ? " (팀장)"
-                  : " (팀원)"}
+                  ? " (전체일정 담당)"
+                  : ""}
             </span>
             <button
               type="button"

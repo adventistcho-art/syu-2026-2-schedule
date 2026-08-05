@@ -353,7 +353,9 @@ export default function ScheduleAdminPage() {
                       전체일정 반영
                     </th>
                     <th className="text-left font-semibold px-4 py-3">작성 계정</th>
-                    <th className="text-left font-semibold px-4 py-3">맵 팀장</th>
+                    <th className="text-left font-semibold px-4 py-3">
+                      전체일정 담당
+                    </th>
                     <th className="text-left font-semibold px-4 py-3">최근 활동</th>
                   </tr>
                 </thead>
