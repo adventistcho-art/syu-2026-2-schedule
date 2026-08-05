@@ -13,7 +13,7 @@ function parseDayEnd(dateStr: string) {
 
 /**
  * GET /api/events
- * query: status=PUBLISHED|DRAFT|ALL (default PUBLISHED)
+ * query: status=PUBLISHED|ALL (default PUBLISHED)
  *        dept=부서명
  *        year=&month=&category=
  */
@@ -42,16 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (dept) {
-    // 일반 사용자는 본인 부서 DRAFT만 조회 가능
-    if (user.role !== "ADMIN" && dept !== user.department && status === "DRAFT") {
-      return NextResponse.json(
-        { error: "본인 부서 초안만 조회할 수 있습니다." },
-        { status: 403 }
-      );
-    }
     where.dept = dept;
-  } else if (status === "DRAFT" && user.role !== "ADMIN") {
-    where.dept = user.department;
   }
 
   if (category && category !== "ALL") {
@@ -79,7 +70,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(events);
 }
 
-/** POST /api/events — 부서 초안(DRAFT)으로 등록 */
+/** POST /api/events — 등록 즉시 전체일정(PUBLISHED) 반영 */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) {
@@ -103,6 +94,7 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
   const dept = user.role === "ADMIN" ? data.dept : user.department;
+  const now = new Date();
 
   const event = await prisma.event.create({
     data: {
@@ -114,7 +106,8 @@ export async function POST(req: NextRequest) {
       location: data.location || null,
       contact: null,
       description: data.description || null,
-      status: "DRAFT",
+      status: "PUBLISHED",
+      publishedAt: now,
       createdById: user.employeeId,
       createdByName: user.name,
     },

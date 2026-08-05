@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useSession, signOut } from "next-auth/react";
 import {
   ArrowLeft,
@@ -12,50 +12,31 @@ import {
   LogOut,
   Search,
   UserRound,
-  X,
 } from "lucide-react";
 import { categoryLabel } from "@/lib/schedule/display";
 import { formatPeriod } from "@/lib/schedule/types";
-
-type Leader = { name: string; employeeId: string };
 
 type DeptRow = {
   department: string;
   kind?: "parent" | "unit";
   phoneParent?: string | null;
   memberCount: number;
-  leaders: Leader[];
-  draftCount: number;
-  publishedCount: number;
+  eventCount: number;
   authoredCount: number;
-  status: "미작성" | "작성중" | "제출완료" | "작성중·제출완료";
+  status: "미작성" | "작성완료";
   authors: {
     name: string;
     employeeId: string | null;
-    draft: number;
-    published: number;
+    count: number;
   }[];
   lastActivityAt: string | null;
-  lastPublishedAt: string | null;
-};
-
-type RosterUser = {
-  employeeId: string;
-  name: string;
-  department: string;
-  phoneParent: string | null;
-  phoneDept: string | null;
-  phoneExt: string | null;
-  isTeamLeader: boolean;
-  matchTier?: "unit" | "parent" | "other";
 };
 
 type AuthorRow = {
   createdById: string | null;
   createdByName: string;
   department: string;
-  draftCount: number;
-  publishedCount: number;
+  eventCount: number;
   lastActivityAt: string | null;
   titles: string[];
 };
@@ -78,10 +59,8 @@ type AdminPayload = {
   summary: {
     totalDepartments: number;
     notStarted: number;
-    inProgress: number;
-    submitted: number;
-    totalDraft: number;
-    totalPublishedAuthored: number;
+    completed: number;
+    totalEvents: number;
     activeAuthors: number;
   };
   departments: DeptRow[];
@@ -102,16 +81,9 @@ async function fetchAdminStatus(): Promise<AdminPayload> {
 }
 
 function statusBadgeClass(status: DeptRow["status"]) {
-  switch (status) {
-    case "제출완료":
-      return "bg-emerald-100 text-emerald-800";
-    case "작성중·제출완료":
-      return "bg-sky-100 text-sky-800";
-    case "작성중":
-      return "bg-amber-100 text-amber-900";
-    default:
-      return "bg-slate-100 text-slate-600";
-  }
+  return status === "작성완료"
+    ? "bg-emerald-100 text-emerald-800"
+    : "bg-slate-100 text-slate-600";
 }
 
 function formatDateTime(iso: string | null) {
@@ -127,14 +99,12 @@ function formatDateTime(iso: string | null) {
 }
 
 export default function ScheduleAdminPage() {
-  const queryClient = useQueryClient();
   const { data: session, status } = useSession();
   const [tab, setTab] = useState<ViewTab>("departments");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | DeptRow["status"]>(
     "ALL"
   );
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const user = session?.user as
     | {
@@ -151,107 +121,6 @@ export default function ScheduleAdminPage() {
     enabled: status === "authenticated" && isAdmin,
   });
 
-  const { data: allUsers, isLoading: rosterLoading } = useQuery({
-    queryKey: ["admin", "users", "full-roster"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/users", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error("명단을 불러오지 못했습니다.");
-      const json = (await res.json()) as { users: RosterUser[] };
-      return json.users;
-    },
-    enabled: status === "authenticated" && isAdmin,
-  });
-
-  /** 상위부서별 전체 계정 명단 (셀렉트용) */
-  const rosterByParent = useMemo(() => {
-    const map = new Map<string, RosterUser[]>();
-    for (const u of allUsers ?? []) {
-      const key = (u.phoneParent || "기타").trim() || "기타";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(u);
-    }
-    for (const list of Array.from(map.values())) {
-      list.sort((a: RosterUser, b: RosterUser) => {
-        const da = (a.phoneDept || a.department || "").localeCompare(
-          b.phoneDept || b.department || "",
-          "ko"
-        );
-        if (da !== 0) return da;
-        return a.name.localeCompare(b.name, "ko");
-      });
-    }
-    return Array.from(map.entries()).sort((a, b) =>
-      a[0].localeCompare(b[0], "ko")
-    );
-  }, [allUsers]);
-
-  const publishMutation = useMutation({
-    mutationFn: async (input: {
-      employeeId: string;
-      canPublish: boolean;
-      name?: string;
-      department: string;
-    }) => {
-      const res = await fetch("/api/admin/publishers", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          employeeId: input.employeeId,
-          canPublish: input.canPublish,
-          department: input.department,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "저장에 실패했습니다.");
-      return json as { user: RosterUser };
-    },
-    onSuccess: async (_data, vars) => {
-      queryClient.setQueryData<AdminPayload>(
-        ["admin", "schedule-status"],
-        (prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            departments: prev.departments.map((d) => {
-              if (d.department !== vars.department) return d;
-              const leaders = vars.canPublish
-                ? d.leaders.some((l) => l.employeeId === vars.employeeId)
-                  ? d.leaders
-                  : [
-                      ...d.leaders,
-                      {
-                        employeeId: vars.employeeId,
-                        name: vars.name || _data.user.name,
-                      },
-                    ]
-                : d.leaders.filter((l) => l.employeeId !== vars.employeeId);
-              return { ...d, leaders };
-            }),
-          };
-        }
-      );
-      setActionMsg(
-        vars.canPublish
-          ? `${vars.name || "선택한 계정"}을(를) 전체일정 담당으로 지정했습니다.`
-          : `${vars.name || "선택한 계정"} 담당을 해제했습니다.`
-      );
-      await queryClient.invalidateQueries({
-        queryKey: ["admin", "schedule-status"],
-      });
-    },
-    onError: (err) => setActionMsg((err as Error).message),
-  });
-
-  useEffect(() => {
-    if (!actionMsg) return;
-    const t = setTimeout(() => setActionMsg(null), 2500);
-    return () => clearTimeout(t);
-  }, [actionMsg]);
-
   const filteredDepts = useMemo(() => {
     const list = data?.departments ?? [];
     const query = q.trim().toLowerCase();
@@ -260,7 +129,7 @@ export default function ScheduleAdminPage() {
       if (!query) return true;
       const hay = [
         d.department,
-        ...d.leaders.map((l) => l.name),
+        d.phoneParent ?? "",
         ...d.authors.map((a) => a.name),
       ]
         .join(" ")
@@ -334,7 +203,7 @@ export default function ScheduleAdminPage() {
               일정 취합 관리자
             </h1>
             <p className="text-sm text-white/70 mt-1">
-              부서별 제출 현황 · 계정별 작성 내역
+              부서별 작성 현황 · 계정별 작성 내역
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -361,7 +230,7 @@ export default function ScheduleAdminPage() {
       </header>
 
       <main className="max-w-[1400px] mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-5">
           {[
             {
               label: "대상 부서",
@@ -374,18 +243,13 @@ export default function ScheduleAdminPage() {
               icon: Building2,
             },
             {
-              label: "작성중",
-              value: summary?.inProgress ?? "-",
+              label: "작성완료",
+              value: summary?.completed ?? "-",
               icon: CalendarDays,
             },
             {
-              label: "제출(반영) 부서",
-              value: summary?.submitted ?? "-",
-              icon: ClipboardList,
-            },
-            {
-              label: "초안 건수",
-              value: summary?.totalDraft ?? "-",
+              label: "등록 일정",
+              value: summary?.totalEvents ?? "-",
               icon: ClipboardList,
             },
             {
@@ -407,7 +271,7 @@ export default function ScheduleAdminPage() {
         <div className="bg-white rounded-xl shadow-sm p-2 mb-4 flex flex-wrap gap-2 items-center">
           {(
             [
-              ["departments", "부서별 제출 현황"],
+              ["departments", "부서별 작성 현황"],
               ["authors", "계정별 작성"],
               ["events", "최근 작성 일정"],
             ] as const
@@ -436,9 +300,7 @@ export default function ScheduleAdminPage() {
             >
               <option value="ALL">전체 상태</option>
               <option value="미작성">미작성</option>
-              <option value="작성중">작성중</option>
-              <option value="작성중·제출완료">작성중·제출완료</option>
-              <option value="제출완료">제출완료</option>
+              <option value="작성완료">작성완료</option>
             </select>
           )}
           <label className="relative">
@@ -467,21 +329,15 @@ export default function ScheduleAdminPage() {
                   <tr>
                     <th className="text-left font-semibold px-4 py-3">부서</th>
                     <th className="text-left font-semibold px-4 py-3">상태</th>
-                    <th className="text-right font-semibold px-4 py-3">초안</th>
-                    <th className="text-right font-semibold px-4 py-3">
-                      전체일정 반영
-                    </th>
+                    <th className="text-right font-semibold px-4 py-3">등록</th>
                     <th className="text-left font-semibold px-4 py-3">작성 계정</th>
-                    <th className="text-left font-semibold px-4 py-3">
-                      전체일정 담당
-                    </th>
                     <th className="text-left font-semibold px-4 py-3">최근 활동</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDepts.map((d) => (
                     <tr
-                      key={d.department}
+                      key={`${d.kind}-${d.department}`}
                       className="border-t border-slate-100 hover:bg-slate-50/80"
                     >
                       <td className="px-4 py-3 font-medium text-slate-900">
@@ -508,10 +364,7 @@ export default function ScheduleAdminPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        {d.draftCount}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {d.publishedCount}
+                        {d.eventCount}
                       </td>
                       <td className="px-4 py-3">
                         {d.authors.length === 0 ? (
@@ -522,7 +375,7 @@ export default function ScheduleAdminPage() {
                               <li key={`${a.employeeId}-${a.name}`}>
                                 <span className="font-medium">{a.name}</span>
                                 <span className="text-slate-400 text-xs ml-1">
-                                  초안 {a.draft} · 반영 {a.published}
+                                  {a.count}건
                                 </span>
                               </li>
                             ))}
@@ -534,98 +387,6 @@ export default function ScheduleAdminPage() {
                           </ul>
                         )}
                       </td>
-                      <td className="px-4 py-3 min-w-[16rem]">
-                        <div className="space-y-1.5">
-                          {d.leaders.length > 0 && (
-                            <ul className="flex flex-wrap gap-1">
-                              {d.leaders.map((l) => (
-                                <li
-                                  key={l.employeeId}
-                                  className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md px-1.5 py-0.5"
-                                >
-                                  {l.name}
-                                  <button
-                                    type="button"
-                                    disabled={publishMutation.isPending}
-                                    onClick={() =>
-                                      publishMutation.mutate({
-                                        employeeId: l.employeeId,
-                                        canPublish: false,
-                                        name: l.name,
-                                        department: d.department,
-                                      })
-                                    }
-                                    className="text-emerald-700/70 hover:text-red-600"
-                                    title="담당 해제"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          <select
-                            key={`${d.department}-${d.leaders.map((l) => l.employeeId).join(",")}`}
-                            defaultValue=""
-                            disabled={
-                              publishMutation.isPending || rosterLoading
-                            }
-                            onChange={(e) => {
-                              const employeeId = e.target.value;
-                              if (!employeeId) return;
-                              const picked = (allUsers ?? []).find(
-                                (u) => u.employeeId === employeeId
-                              );
-                              if (!picked) return;
-                              if (
-                                d.leaders.some(
-                                  (l) => l.employeeId === employeeId
-                                )
-                              ) {
-                                e.target.value = "";
-                                return;
-                              }
-                              publishMutation.mutate({
-                                employeeId,
-                                canPublish: true,
-                                name: picked.name,
-                                department: d.department,
-                              });
-                              e.target.value = "";
-                            }}
-                            className="w-full max-w-xs border border-slate-200 rounded-md px-2 py-1.5 text-sm text-slate-700 bg-white"
-                            title="전화번호부 전체 계정에서 선택"
-                          >
-                            <option value="">
-                              {rosterLoading
-                                ? "명단 불러오는 중..."
-                                : `계정 선택 (${allUsers?.length ?? 0}명)`}
-                            </option>
-                            {rosterByParent.map(([parent, users]) => (
-                              <optgroup key={parent} label={parent}>
-                                {users.map((u) => {
-                                  const label =
-                                    u.phoneDept && u.phoneParent
-                                      ? `${u.name} · ${u.phoneDept}(${u.phoneParent})${u.phoneExt ? ` · ${u.phoneExt}` : ""}`
-                                      : `${u.name} · ${u.department}${u.phoneExt ? ` · ${u.phoneExt}` : ""}`;
-                                  const assigned = d.leaders.some(
-                                    (l) => l.employeeId === u.employeeId
-                                  );
-                                  return (
-                                    <option
-                                      key={u.employeeId}
-                                      value={u.employeeId}
-                                      disabled={assigned}
-                                    >
-                                      {assigned ? `✓ ${label}` : label}
-                                    </option>
-                                  );
-                                })}
-                              </optgroup>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                         {formatDateTime(d.lastActivityAt)}
                       </td>
@@ -634,7 +395,7 @@ export default function ScheduleAdminPage() {
                   {filteredDepts.length === 0 && !isLoading && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={5}
                         className="px-4 py-10 text-center text-slate-400"
                       >
                         조건에 맞는 부서가 없습니다.
@@ -656,8 +417,7 @@ export default function ScheduleAdminPage() {
                     <th className="text-left font-semibold px-4 py-3">이름</th>
                     <th className="text-left font-semibold px-4 py-3">계정</th>
                     <th className="text-left font-semibold px-4 py-3">부서</th>
-                    <th className="text-right font-semibold px-4 py-3">초안</th>
-                    <th className="text-right font-semibold px-4 py-3">반영</th>
+                    <th className="text-right font-semibold px-4 py-3">등록</th>
                     <th className="text-left font-semibold px-4 py-3">최근 일정</th>
                     <th className="text-left font-semibold px-4 py-3">최근 활동</th>
                   </tr>
@@ -674,15 +434,12 @@ export default function ScheduleAdminPage() {
                       </td>
                       <td className="px-4 py-3">{a.department}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        {a.draftCount}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {a.publishedCount}
+                        {a.eventCount}
                       </td>
                       <td className="px-4 py-3 text-slate-600 max-w-xs">
                         {a.titles.length ? a.titles.join(" · ") : "-"}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                         {formatDateTime(a.lastActivityAt)}
                       </td>
                     </tr>
@@ -690,7 +447,7 @@ export default function ScheduleAdminPage() {
                   {filteredAuthors.length === 0 && !isLoading && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={6}
                         className="px-4 py-10 text-center text-slate-400"
                       >
                         작성 내역이 없습니다.
@@ -711,9 +468,8 @@ export default function ScheduleAdminPage() {
                   <tr>
                     <th className="text-left font-semibold px-4 py-3">일정</th>
                     <th className="text-left font-semibold px-4 py-3">부서</th>
-                    <th className="text-left font-semibold px-4 py-3">작성자</th>
                     <th className="text-left font-semibold px-4 py-3">구분</th>
-                    <th className="text-left font-semibold px-4 py-3">상태</th>
+                    <th className="text-left font-semibold px-4 py-3">작성자</th>
                     <th className="text-left font-semibold px-4 py-3">기간</th>
                     <th className="text-left font-semibold px-4 py-3">수정</th>
                   </tr>
@@ -727,29 +483,13 @@ export default function ScheduleAdminPage() {
                       <td className="px-4 py-3 font-medium">{e.title}</td>
                       <td className="px-4 py-3">{e.dept}</td>
                       <td className="px-4 py-3">
-                        {e.createdByName ?? "-"}
-                        {e.createdById && (
-                          <span className="block text-xs text-slate-400">
-                            {e.createdById}
-                          </span>
-                        )}
+                        {categoryLabel(e.category as never)}
                       </td>
-                      <td className="px-4 py-3">{categoryLabel(e.category)}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold ${
-                            e.status === "PUBLISHED"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-amber-100 text-amber-900"
-                          }`}
-                        >
-                          {e.status === "PUBLISHED" ? "전체일정 반영" : "부서 초안"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                      <td className="px-4 py-3">{e.createdByName ?? "-"}</td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                         {formatPeriod(e.startDate, e.endDate)}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                         {formatDateTime(e.updatedAt)}
                       </td>
                     </tr>
@@ -757,10 +497,10 @@ export default function ScheduleAdminPage() {
                   {filteredEvents.length === 0 && !isLoading && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={6}
                         className="px-4 py-10 text-center text-slate-400"
                       >
-                        표시할 일정이 없습니다.
+                        최근 작성 일정이 없습니다.
                       </td>
                     </tr>
                   )}
@@ -771,17 +511,10 @@ export default function ScheduleAdminPage() {
         )}
 
         <p className="text-xs text-slate-500 mt-4">
-          · 「제출」은 부서 초안을 전체일정으로 보낸(PUBLISHED) 건입니다. ·
-          공식 학사력·공휴일·시스템 작성은 취합 현황에서 제외됩니다. ·
-          「전체일정 담당」은 전화번호부 전체 계정 목록에서 바로 선택합니다.
+          · 부서에서 등록한 일정은 즉시 전체 캘린더에 반영됩니다. · 공식
+          학사력·공휴일·시스템 작성은 취합 현황에서 제외됩니다.
         </p>
       </main>
-
-      {actionMsg && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg bg-[#003366] text-white text-sm shadow-lg">
-          {actionMsg}
-        </div>
-      )}
     </div>
   );
 }

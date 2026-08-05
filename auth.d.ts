@@ -7,8 +7,6 @@ declare module "next-auth" {
       employeeId: string;
       role: "ADMIN" | "USER";
       department: string;
-      isTeamLeader: boolean;
-      canPublishToOverall: boolean;
     } & DefaultSession["user"];
   }
 
@@ -17,8 +15,6 @@ declare module "next-auth" {
     employeeId: string;
     role: "ADMIN" | "USER";
     department: string;
-    isTeamLeader: boolean;
-    canPublishToOverall: boolean;
   }
 }
 
@@ -28,7 +24,5 @@ declare module "next-auth/jwt" {
     employeeId: string;
     role: "ADMIN" | "USER";
     department: string;
-    isTeamLeader: boolean;
-    canPublishToOverall: boolean;
   }
 }

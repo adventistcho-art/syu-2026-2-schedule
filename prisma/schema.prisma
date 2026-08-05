@@ -173,7 +173,7 @@ model User {
   /// 주부서 = primaryDept || phoneDept
   department    String
   role          String   @default("USER") // ADMIN | USER
-  /// cho.syu.my account-access-map 의 팀장 체크 (isTeamLeader)
+  /// (레거시) 예전 전체일정 담당 플래그 — 더 이상 사용하지 않음
   isTeamLeader  Boolean  @default(false)
   email         String?
   /// 전화부 상위부서
@@ -189,21 +189,9 @@ model User {
   @@map("users")
 }
 
-/// 관리자가 부서별로 지정한 전체일정 담당 (엑셀 명단 중 선택)
-model DeptPublisher {
-  id         String   @id @default(uuid())
-  department String
-  employeeId String
-  createdAt  DateTime @default(now())
-
-  @@unique([department, employeeId])
-  @@index([department])
-  @@map("dept_publishers")
-}
-
 // ─── 학사/부서 일정 (2026-2학기 통합) ─────────────────────────
 // category: ACADEMIC | CHAPEL | STUDENT | ADMISSION | DEPT | HOLIDAY
-// status: DRAFT(부서 취합중) | PUBLISHED(전체일정 반영)
+// status: PUBLISHED (등록 즉시 전체일정 반영)
 model Event {
   id            Int       @id @default(autoincrement())
   title         String

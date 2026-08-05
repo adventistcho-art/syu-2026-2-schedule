@@ -85,9 +85,7 @@ export default function EventEditDialog({
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900">일정 수정</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {event.status === "DRAFT" ? "부서 초안" : "전체일정"} · {event.dept}
-            </p>
+            <p className="text-xs text-slate-500 mt-0.5">{event.dept}</p>
           </div>
           <button
             type="button"

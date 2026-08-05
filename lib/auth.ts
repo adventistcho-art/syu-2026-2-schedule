@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import { resolveCanPublish } from "@/lib/auth/publishPermission";
 
 export type AppUser = {
   id: string;
@@ -7,12 +6,7 @@ export type AppUser = {
   employeeId: string;
   role: "ADMIN" | "USER";
   department: string;
-  /** 전화번호부 F열 기준 전체일정 게시 권한 */
-  isTeamLeader: boolean;
-  canPublishToOverall: boolean;
 };
-
-export { resolveCanPublish } from "@/lib/auth/publishPermission";
 
 export async function getSessionUser(): Promise<AppUser | null> {
   const session = await auth();
@@ -24,22 +18,11 @@ export async function getSessionUser(): Promise<AppUser | null> {
     employeeId?: string;
     role?: "ADMIN" | "USER";
     department?: string;
-    isTeamLeader?: boolean;
-    canPublishToOverall?: boolean;
   };
 
   if (!user.id || !user.employeeId || !user.department || !user.role) {
     return null;
   }
-
-  const isTeamLeader = Boolean(user.isTeamLeader);
-  const canPublish =
-    typeof user.canPublishToOverall === "boolean"
-      ? user.canPublishToOverall
-      : await resolveCanPublish({
-          role: user.role,
-          isTeamLeader,
-        });
 
   return {
     id: user.id,
@@ -47,13 +30,7 @@ export async function getSessionUser(): Promise<AppUser | null> {
     employeeId: user.employeeId,
     role: user.role,
     department: user.department,
-    isTeamLeader,
-    canPublishToOverall: canPublish,
   };
-}
-
-export function canPublishToOverall(user: AppUser): boolean {
-  return user.canPublishToOverall;
 }
 
 export async function isAdmin() {

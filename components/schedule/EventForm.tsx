@@ -85,8 +85,7 @@ export default function EventForm({ department, isAdmin }: Props) {
       <div className="px-5 py-4 bg-[#003366] text-white rounded-t-xl">
         <p className="font-bold">부서별 일정 및 행사 데이터 등록</p>
         <p className="text-xs text-white/70 mt-1">
-          등록 시 부서 초안에만 저장됩니다. 전체 캘린더 반영은 아래「전체일정으로
-          보내기」로 제출하세요.
+          등록하면 즉시 전체 캘린더에 반영됩니다.
         </p>
       </div>
       <form
@@ -198,7 +197,7 @@ export default function EventForm({ department, isAdmin }: Props) {
         )}
         {mutation.isSuccess && (
           <p className="md:col-span-2 text-sm text-green-600">
-            부서 초안에 추가되었습니다. 아래에서 확인 후 전체일정으로 보내세요.
+            전체 캘린더에 등록되었습니다.
           </p>
         )}
 
@@ -225,7 +224,7 @@ export default function EventForm({ department, isAdmin }: Props) {
             disabled={mutation.isPending}
             className="px-5 py-2 text-sm rounded-lg bg-[#003366] text-white hover:bg-[#002244] disabled:opacity-50"
           >
-            {mutation.isPending ? "저장 중..." : "부서 초안에 추가"}
+            {mutation.isPending ? "저장 중..." : "일정 등록"}
           </button>
         </div>
       </form>

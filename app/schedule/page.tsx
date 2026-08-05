@@ -8,7 +8,6 @@ import { CalendarDays, ClipboardList, LogOut } from "lucide-react";
 import StatCards from "@/components/schedule/StatCards";
 import SemesterCalendar from "@/components/schedule/SemesterCalendar";
 import EventForm from "@/components/schedule/EventForm";
-import DeptDraftPanel from "@/components/schedule/DeptDraftPanel";
 import EventTable from "@/components/schedule/EventTable";
 import EventDetailDialog from "@/components/schedule/EventDetailDialog";
 import EventEditDialog from "@/components/schedule/EventEditDialog";
@@ -43,13 +42,9 @@ export default function SchedulePage() {
         name?: string | null;
         role?: "ADMIN" | "USER";
         department?: string;
-        isTeamLeader?: boolean;
-        canPublishToOverall?: boolean;
       }
     | undefined;
   const isAdmin = user?.role === "ADMIN";
-  const isTeamLeader = Boolean(user?.isTeamLeader);
-  const canPublish = Boolean(isAdmin || user?.canPublishToOverall);
   const department = user?.department ?? "";
   const [adminDept, setAdminDept] = useState("");
 
@@ -95,7 +90,7 @@ export default function SchedulePage() {
               삼육대학교 2026학년도 2학기 일정 통합 관리
             </h1>
             <p className="text-sm text-white/70 mt-1">
-              2026.09 ~ 2027.02 · 공식 학사력 연동 및 부서별 일정 취합
+              2026.09 ~ 2027.02 · 공식 학사력 연동 및 부서별 일정 등록
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -110,11 +105,7 @@ export default function SchedulePage() {
             )}
             <span className="bg-white/10 text-sm px-3 py-1.5 rounded-lg">
               {user.name} · {department}
-              {isAdmin
-                ? " (관리자)"
-                : isTeamLeader
-                  ? " (전체일정 담당)"
-                  : ""}
+              {isAdmin ? " (관리자)" : ""}
             </span>
             <button
               type="button"
@@ -204,11 +195,6 @@ export default function SchedulePage() {
             <EventForm
               department={isAdmin ? adminDept || department : department}
               isAdmin={!!isAdmin}
-            />
-            <DeptDraftPanel
-              department={isAdmin ? adminDept || department : department}
-              isAdmin={!!isAdmin}
-              canPublish={canPublish}
             />
           </div>
         )}

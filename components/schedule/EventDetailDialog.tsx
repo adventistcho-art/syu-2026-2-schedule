@@ -76,9 +76,6 @@ export default function EventDetailDialog({
               {displayDept(event)}
             </span>
           )}
-          <span className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600">
-            {event.status === "DRAFT" ? "부서 초안" : "전체일정"}
-          </span>
         </div>
 
         <div className="space-y-3 text-sm text-slate-700">

@@ -242,15 +242,13 @@ async function main() {
   let adminCount = 0;
   for (const a of phonebook) {
     const admin = isAdminAccount(a);
-    const canPublish =
-      admin || Boolean(a.canPublishToOverall ?? a.isTeamLeader);
     await prisma.user.upsert({
       where: { employeeId: a.employeeId },
       update: {
         name: a.name,
         department: a.department,
         role: admin ? "ADMIN" : "USER",
-        isTeamLeader: canPublish,
+        isTeamLeader: false,
         email: null,
         phoneParent: a.phoneParent,
         phoneDept: a.phoneDept,
@@ -261,7 +259,7 @@ async function main() {
         name: a.name,
         department: a.department,
         role: admin ? "ADMIN" : "USER",
-        isTeamLeader: canPublish,
+        isTeamLeader: false,
         phoneParent: a.phoneParent,
         phoneDept: a.phoneDept,
         phoneExt: a.phoneExt,

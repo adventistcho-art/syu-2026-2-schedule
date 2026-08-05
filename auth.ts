@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { matchUserByPhonebook } from "@/lib/auth/matchUser";
-import { resolveCanPublish } from "@/lib/auth/publishPermission";
 
 type AuthUser = {
   id: string;
@@ -10,32 +9,21 @@ type AuthUser = {
   employeeId: string;
   role: "ADMIN" | "USER";
   department: string;
-  /** 전화번호부 F열 기준 전체일정 게시 권한 */
-  isTeamLeader: boolean;
-  canPublishToOverall: boolean;
 };
 
-async function toAuthUser(user: {
+function toAuthUser(user: {
   id: string;
   name: string;
   employeeId: string;
   role: string;
   department: string;
-  isTeamLeader: boolean;
-}): Promise<AuthUser> {
-  const role = user.role as "ADMIN" | "USER";
-  const canPublishToOverall = await resolveCanPublish({
-    role,
-    isTeamLeader: user.isTeamLeader,
-  });
+}): AuthUser {
   return {
     id: user.id,
     name: user.name,
     employeeId: user.employeeId,
-    role,
+    role: user.role as "ADMIN" | "USER",
     department: user.department,
-    isTeamLeader: user.isTeamLeader,
-    canPublishToOverall,
   };
 }
 
@@ -98,8 +86,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.employeeId = u.employeeId;
         token.role = u.role;
         token.department = u.department;
-        token.isTeamLeader = u.isTeamLeader;
-        token.canPublishToOverall = u.canPublishToOverall;
         token.name = u.name;
       }
       return token;
@@ -111,8 +97,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         sUser.employeeId = token.employeeId as string;
         sUser.role = token.role as "ADMIN" | "USER";
         sUser.department = token.department as string;
-        sUser.isTeamLeader = Boolean(token.isTeamLeader);
-        sUser.canPublishToOverall = Boolean(token.canPublishToOverall);
         sUser.name = (token.name as string) || session.user.name || "";
       }
       return session;
