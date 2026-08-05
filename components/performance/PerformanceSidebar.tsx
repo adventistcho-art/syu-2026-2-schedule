@@ -12,6 +12,7 @@ import {
   Globe,
   Lock,
   CalendarDays,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePerformanceAuth } from "@/components/performance/usePerformanceAuth";
@@ -28,6 +29,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "학사일정 통합",
     href: "/schedule",
     icon: <CalendarDays className="w-4 h-4" />,
+  },
+  {
+    label: "일정 취합 현황",
+    href: "/schedule/admin",
+    icon: <ClipboardList className="w-4 h-4" />,
+    adminOnly: true,
   },
   {
     label: "공개 대시보드",

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession, signOut } from "next-auth/react";
-import { CalendarDays, LogOut } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, ClipboardList, LogOut } from "lucide-react";
 import StatCards from "@/components/schedule/StatCards";
 import SemesterCalendar from "@/components/schedule/SemesterCalendar";
 import EventForm from "@/components/schedule/EventForm";
@@ -98,6 +99,15 @@ export default function SchedulePage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link
+                href="/schedule/admin"
+                className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10"
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                취합 현황
+              </Link>
+            )}
             <span className="bg-white/10 text-sm px-3 py-1.5 rounded-lg">
               {user.name} · {department}
               {isAdmin
