@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createEventSchema, type CreateEventInput } from "@/lib/schedule/schemas";
-import { CATEGORY_LABEL, type EventCategory } from "@/lib/schedule/constants";
 
 type Props = {
   department: string;
@@ -48,6 +47,7 @@ export default function EventForm({ department, isAdmin }: Props) {
 
   useEffect(() => {
     setValue("dept", department);
+    setValue("category", "DEPT");
   }, [department, setValue]);
 
   const mutation = useMutation({
@@ -57,6 +57,7 @@ export default function EventForm({ department, isAdmin }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
+          category: "DEPT",
           dept: isAdmin ? data.dept : department,
         }),
       });
@@ -92,7 +93,7 @@ export default function EventForm({ department, isAdmin }: Props) {
         onSubmit={handleSubmit((data) => mutation.mutate(data))}
         className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4"
       >
-        <div>
+        <div className="md:col-span-2">
           <label className="block text-sm font-semibold mb-1">작성 부서명 *</label>
           {isAdmin ? (
             <select
@@ -114,22 +115,7 @@ export default function EventForm({ department, isAdmin }: Props) {
           )}
           <p className="text-xs text-slate-500 mt-1">주부서 기준 (세션 연동)</p>
         </div>
-
-        <div>
-          <label className="block text-sm font-semibold mb-1">일정 카테고리 *</label>
-          <select
-            {...register("category")}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          >
-            {(Object.keys(CATEGORY_LABEL) as EventCategory[])
-              .filter((c) => c !== "HOLIDAY")
-              .map((k) => (
-                <option key={k} value={k}>
-                  {CATEGORY_LABEL[k]}
-                </option>
-              ))}
-          </select>
-        </div>
+        <input type="hidden" {...register("category")} value="DEPT" />
 
         <div className="md:col-span-2">
           <label className="block text-sm font-semibold mb-1">일정/행사명 *</label>
@@ -172,21 +158,21 @@ export default function EventForm({ department, isAdmin }: Props) {
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-semibold mb-1">장소 / 진행 방식</label>
+          <label className="block text-sm font-semibold mb-1">장소</label>
           <input
             {...register("location")}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            placeholder="예: 대강당 / ZOOM"
+            placeholder="예: 대강당"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-semibold mb-1">상세 내용 및 비고</label>
+          <label className="block text-sm font-semibold mb-1">사업개요</label>
           <textarea
             rows={3}
             {...register("description")}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            placeholder="행사 대상, 신청 방법 등"
+            placeholder="사업 목적, 대상, 주요 내용 등"
           />
         </div>
 

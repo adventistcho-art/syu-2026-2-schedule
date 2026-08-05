@@ -111,19 +111,23 @@ export default function EventEditDialog({
           )}
           {!isAdmin && <input type="hidden" {...register("dept")} />}
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">카테고리</label>
-            <select
-              {...register("category")}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            >
-              {(Object.keys(CATEGORY_LABEL) as EventCategory[]).map((k) => (
-                <option key={k} value={k}>
-                  {CATEGORY_LABEL[k]}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isAdmin ? (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold mb-1">카테고리</label>
+              <select
+                {...register("category")}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              >
+                {(Object.keys(CATEGORY_LABEL) as EventCategory[]).map((k) => (
+                  <option key={k} value={k}>
+                    {CATEGORY_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <input type="hidden" {...register("category")} />
+          )}
 
           <div className="md:col-span-2">
             <label className="block text-sm font-semibold mb-1">일정명 *</label>
@@ -173,7 +177,7 @@ export default function EventEditDialog({
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold mb-1">상세 내용</label>
+            <label className="block text-sm font-semibold mb-1">사업개요</label>
             <textarea
               rows={3}
               {...register("description")}

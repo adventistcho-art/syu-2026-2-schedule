@@ -94,12 +94,14 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
   const dept = user.role === "ADMIN" ? data.dept : user.department;
+  // 부서 등록 일정은 항상 일반부서(DEPT)
+  const category = user.role === "ADMIN" ? data.category : "DEPT";
   const now = new Date();
 
   const event = await prisma.event.create({
     data: {
       title: data.title,
-      category: data.category,
+      category,
       dept,
       startDate: parseDayStart(data.startDate),
       endDate: parseDayEnd(data.endDate),
