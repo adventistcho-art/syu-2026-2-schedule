@@ -1,12 +1,11 @@
 "use client";
 
-import { CalendarCheck, BookOpen, HeartPulse, Users } from "lucide-react";
+import { CalendarCheck, BookOpen, Users } from "lucide-react";
 import type { ScheduleEvent } from "@/lib/schedule/types";
 
 export default function StatCards({ events }: { events: ScheduleEvent[] }) {
   const total = events.length;
   const academic = events.filter((e) => e.category === "ACADEMIC").length;
-  const chapel = events.filter((e) => e.category === "CHAPEL").length;
   const student = events.filter(
     (e) => e.category === "STUDENT" || e.category === "DEPT"
   ).length;
@@ -27,13 +26,6 @@ export default function StatCards({ events }: { events: ScheduleEvent[] }) {
       iconClass: "text-sky-600",
     },
     {
-      label: "교목/영성 행사",
-      value: chapel,
-      icon: HeartPulse,
-      border: "border-l-[#2b8a3e]",
-      iconClass: "text-green-600",
-    },
-    {
       label: "학생/부서 행사",
       value: student,
       icon: Users,
@@ -43,7 +35,7 @@ export default function StatCards({ events }: { events: ScheduleEvent[] }) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
       {cards.map((c) => (
         <div
           key={c.label}
