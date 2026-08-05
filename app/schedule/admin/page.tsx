@@ -165,9 +165,10 @@ export default function ScheduleAdminPage() {
   });
 
   const { data: rosterData, isLoading: rosterLoading } = useQuery({
-    queryKey: ["admin", "users", pickerDept, debouncedSearch],
+    queryKey: ["admin", "users", "all", pickerDept, debouncedSearch],
     queryFn: async () => {
       const params = new URLSearchParams();
+      // 엑셀 전체 명단 — department는 정렬 우선순위용
       if (pickerDept) params.set("department", pickerDept);
       if (debouncedSearch) params.set("q", debouncedSearch);
       const res = await fetch(`/api/admin/users?${params}`, {
@@ -754,14 +755,14 @@ export default function ScheduleAdminPage() {
                 <input
                   value={pickerSearch}
                   onChange={(e) => setPickerSearch(e.target.value)}
-                  placeholder="이름·내선으로 검색"
+                  placeholder="이름·내선·부서로 검색 (전화번호부 전체)"
                   autoFocus
                   className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
                 />
               </label>
               <p className="text-[11px] text-slate-400 mt-1.5">
-                해당 부서 명단에서 검색해 선택하면 「전체일정 담당」에
-                반영됩니다.
+                엑셀 전화번호부 전체 명단입니다. 이 부서 소속이 위에 먼저
+                보이고, 검색하면 전체에서 찾을 수 있습니다.
               </p>
             </div>
 

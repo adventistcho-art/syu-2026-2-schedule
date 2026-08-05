@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { loadDeptPublishers } from "@/lib/admin/deptPublishers";
 
 const NON_DEPT_LABELS = new Set([
   "국공휴일",
@@ -96,17 +97,37 @@ export async function GET() {
     lastPublishedAt: string | null;
   };
 
+  const belongsToDept = (
+    u: { department: string; phoneDept: string | null; phoneParent: string | null },
+    dept: string
+  ) => {
+    const d = dept.trim();
+    return (
+      (u.department || "").trim() === d ||
+      (u.phoneDept || "").trim() === d ||
+      (u.phoneParent || "").trim() === d
+    );
+  };
+
+  const deptPublishers = await loadDeptPublishers();
+  const userById = new Map(users.map((u) => [u.employeeId, u]));
+
   const deptMap = new Map<string, DeptAgg>();
   for (const dept of Array.from(deptSet).sort((a, b) => a.localeCompare(b, "ko"))) {
-    const members = users.filter(
-      (u) => (u.department || u.phoneDept || "").trim() === dept
-    );
+    const members = users.filter((u) => belongsToDept(u, dept));
+    const leaderMap = new Map<string, { name: string; employeeId: string }>();
+    for (const m of members.filter((x) => x.isTeamLeader)) {
+      leaderMap.set(m.employeeId, { name: m.name, employeeId: m.employeeId });
+    }
+    // 관리자가 엑셀 명단에서 지정한 담당 (부서 칸별)
+    for (const id of deptPublishers[dept] ?? []) {
+      const u = userById.get(id);
+      if (u) leaderMap.set(u.employeeId, { name: u.name, employeeId: u.employeeId });
+    }
     deptMap.set(dept, {
       department: dept,
       memberCount: members.length,
-      leaders: members
-        .filter((m) => m.isTeamLeader)
-        .map((m) => ({ name: m.name, employeeId: m.employeeId })),
+      leaders: Array.from(leaderMap.values()),
       draftCount: 0,
       publishedCount: 0,
       authoredCount: 0,

@@ -2,17 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import {
+  isAssignedSomewhere,
+  setDeptPublisher,
+} from "@/lib/admin/deptPublishers";
 
 const bodySchema = z.object({
   employeeId: z.string().min(1),
   canPublish: z.boolean(),
-  /** 지정 대상 부서(실무부서) — 해당 부서 소속인지 검증 */
   department: z.string().optional(),
 });
 
 /**
  * PATCH /api/admin/publishers
- * 관리자 — 전체일정 담당(isTeamLeader) 지정/해제
+ * 관리자 — 전체일정 담당 지정/해제 (엑셀 전화번호부 명단 전원)
  */
 export async function PATCH(req: NextRequest) {
   const user = await getSessionUser();
@@ -47,36 +50,25 @@ export async function PATCH(req: NextRequest) {
       { status: 404 }
     );
   }
-  if (target.role === "ADMIN") {
-    return NextResponse.json(
-      { error: "관리자 계정은 변경할 수 없습니다." },
-      { status: 400 }
-    );
-  }
 
   const dept = (parsed.data.department || "").trim();
-  if (dept && parsed.data.canPublish) {
-    const inDept =
-      (target.department || "").trim() === dept ||
-      (target.phoneDept || "").trim() === dept;
-    if (!inDept) {
-      return NextResponse.json(
-        {
-          error: `선택한 계정이 「${dept}」 소속이 아닙니다. 해당 부서 명단에서 다시 선택하세요.`,
-        },
-        { status: 400 }
-      );
-    }
+  if (dept) {
+    await setDeptPublisher(dept, parsed.data.employeeId, parsed.data.canPublish);
   }
+
+  const canPublishFlag =
+    parsed.data.canPublish ||
+    (await isAssignedSomewhere(parsed.data.employeeId));
 
   const updated = await prisma.user.update({
     where: { employeeId: parsed.data.employeeId },
-    data: { isTeamLeader: parsed.data.canPublish },
+    data: { isTeamLeader: canPublishFlag },
     select: {
       employeeId: true,
       name: true,
       department: true,
       phoneDept: true,
+      phoneParent: true,
       isTeamLeader: true,
     },
   });

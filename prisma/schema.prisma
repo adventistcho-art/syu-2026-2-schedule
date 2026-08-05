@@ -189,6 +189,18 @@ model User {
   @@map("users")
 }
 
+/// 관리자가 부서별로 지정한 전체일정 담당 (엑셀 명단 중 선택)
+model DeptPublisher {
+  id         String   @id @default(uuid())
+  department String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  @@unique([department, employeeId])
+  @@index([department])
+  @@map("dept_publishers")
+}
+
 // ─── 학사/부서 일정 (2026-2학기 통합) ─────────────────────────
 // category: ACADEMIC | CHAPEL | STUDENT | ADMISSION | DEPT | HOLIDAY
 // status: DRAFT(부서 취합중) | PUBLISHED(전체일정 반영)

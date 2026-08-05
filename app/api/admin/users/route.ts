@@ -5,7 +5,8 @@ import type { Prisma } from "@prisma/client";
 
 /**
  * GET /api/admin/users?q=&department=
- * 관리자 — 전체일정 담당 지정용 명단 검색
+ * 관리자 — 전화번호부(엑셀) 전체 명단 검색
+ * department 가 있으면 해당 부서·상위부서 소속을 위로 정렬
  */
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -22,13 +23,7 @@ export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   const department = (req.nextUrl.searchParams.get("department") || "").trim();
 
-  const and: Prisma.UserWhereInput[] = [{ role: { not: "ADMIN" } }];
-
-  if (department) {
-    and.push({
-      OR: [{ department }, { phoneDept: department }],
-    });
-  }
+  const and: Prisma.UserWhereInput[] = [];
 
   if (q) {
     and.push({
@@ -44,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const users = await prisma.user.findMany({
-    where: { AND: and },
+    where: and.length ? { AND: and } : undefined,
     select: {
       employeeId: true,
       name: true,
@@ -53,10 +48,40 @@ export async function GET(req: NextRequest) {
       phoneDept: true,
       phoneExt: true,
       isTeamLeader: true,
+      role: true,
     },
     orderBy: [{ name: "asc" }, { employeeId: "asc" }],
-    take: 80,
+    take: 500,
   });
 
-  return NextResponse.json({ users });
+  const scored = users.map((u) => {
+    const dept = (u.department || "").trim();
+    const phoneDept = (u.phoneDept || "").trim();
+    const phoneParent = (u.phoneParent || "").trim();
+    let score = 0;
+    if (department) {
+      if (dept === department || phoneDept === department) score += 2;
+      if (phoneParent === department) score += 1;
+    }
+    return { u, score };
+  });
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.u.name.localeCompare(b.u.name, "ko");
+  });
+
+  return NextResponse.json({
+    users: scored.map(({ u }) => ({
+      employeeId: u.employeeId,
+      name: u.name,
+      department: u.department,
+      phoneParent: u.phoneParent,
+      phoneDept: u.phoneDept,
+      phoneExt: u.phoneExt,
+      isTeamLeader: u.isTeamLeader,
+      role: u.role,
+    })),
+    total: scored.length,
+  });
 }
