@@ -62,15 +62,59 @@ export async function GET() {
     }),
   ]);
 
-  const deptSet = new Set<string>();
+  /** 상위부서 / 실무부서 모두 행으로 노출 */
+  type DeptKind = "parent" | "unit";
+  type DeptKey = { department: string; kind: DeptKind; phoneParent: string | null };
+
+  const parentNames = new Set<string>();
+  const unitMeta = new Map<string, string | null>(); // phoneDept -> phoneParent
+
   for (const u of users) {
-    const d = (u.department || u.phoneDept || "").trim();
-    if (d && isTrackedDept(d)) deptSet.add(d);
-  }
-  for (const e of events) {
-    if (isTrackedDept(e.dept) && e.category !== "HOLIDAY") {
-      deptSet.add(e.dept.trim());
+    const parent = (u.phoneParent || "").trim();
+    const unit = (u.phoneDept || u.department || "").trim();
+    if (parent && isTrackedDept(parent)) parentNames.add(parent);
+    if (unit && isTrackedDept(unit)) {
+      if (!unitMeta.has(unit)) {
+        unitMeta.set(unit, parent || null);
+      }
     }
+  }
+
+  const deptKeys: DeptKey[] = [];
+  const seen = new Set<string>();
+
+  for (const parent of Array.from(parentNames).sort((a, b) =>
+    a.localeCompare(b, "ko")
+  )) {
+    deptKeys.push({ department: parent, kind: "parent", phoneParent: parent });
+    seen.add(`parent:${parent}`);
+  }
+
+  for (const [unit, parent] of Array.from(unitMeta.entries()).sort((a, b) =>
+    a[0].localeCompare(b[0], "ko")
+  )) {
+    // 실무부서명 = 상위부서명 이면 상위부서 행만 유지
+    if (parent && unit === parent) continue;
+    const key = `unit:${unit}`;
+    if (seen.has(key)) continue;
+    deptKeys.push({
+      department: unit,
+      kind: "unit",
+      phoneParent: parent,
+    });
+    seen.add(key);
+  }
+
+  for (const e of events) {
+    const dept = (e.dept || "").trim();
+    if (!isTrackedDept(dept) || e.category === "HOLIDAY") continue;
+    if (seen.has(`parent:${dept}`) || seen.has(`unit:${dept}`)) continue;
+    deptKeys.push({
+      department: dept,
+      kind: parentNames.has(dept) ? "parent" : "unit",
+      phoneParent: unitMeta.get(dept) ?? (parentNames.has(dept) ? dept : null),
+    });
+    seen.add(`${parentNames.has(dept) ? "parent" : "unit"}:${dept}`);
   }
 
   type AuthorAgg = {
@@ -85,6 +129,8 @@ export async function GET() {
 
   type DeptAgg = {
     department: string;
+    kind: DeptKind;
+    phoneParent: string | null;
     memberCount: number;
     leaders: { name: string; employeeId: string }[];
     draftCount: number;
@@ -99,22 +145,25 @@ export async function GET() {
 
   const belongsToDept = (
     u: { department: string; phoneDept: string | null; phoneParent: string | null },
-    dept: string
+    dept: string,
+    kind: DeptKind
   ) => {
     const d = dept.trim();
-    return (
-      (u.department || "").trim() === d ||
-      (u.phoneDept || "").trim() === d ||
-      (u.phoneParent || "").trim() === d
-    );
+    const phoneDept = (u.phoneDept || "").trim();
+    const phoneParent = (u.phoneParent || "").trim();
+    const department = (u.department || "").trim();
+    if (kind === "parent") {
+      return phoneParent === d || phoneDept === d || department === d;
+    }
+    return phoneDept === d || department === d;
   };
 
   const deptPublishers = await loadDeptPublishers();
   const userById = new Map(users.map((u) => [u.employeeId, u]));
 
   const deptMap = new Map<string, DeptAgg>();
-  for (const dept of Array.from(deptSet).sort((a, b) => a.localeCompare(b, "ko"))) {
-    const members = users.filter((u) => belongsToDept(u, dept));
+  for (const { department: dept, kind, phoneParent } of deptKeys) {
+    const members = users.filter((u) => belongsToDept(u, dept, kind));
     const leaderMap = new Map<string, { name: string; employeeId: string }>();
     for (const m of members.filter((x) => x.isTeamLeader)) {
       leaderMap.set(m.employeeId, { name: m.name, employeeId: m.employeeId });
@@ -126,6 +175,8 @@ export async function GET() {
     }
     deptMap.set(dept, {
       department: dept,
+      kind,
+      phoneParent,
       memberCount: members.length,
       leaders: Array.from(leaderMap.values()),
       draftCount: 0,
@@ -163,6 +214,8 @@ export async function GET() {
     if (!agg) {
       agg = {
         department: dept,
+        kind: parentNames.has(dept) ? "parent" : "unit",
+        phoneParent: unitMeta.get(dept) ?? (parentNames.has(dept) ? dept : null),
         memberCount: 0,
         leaders: [],
         draftCount: 0,
@@ -257,6 +310,12 @@ export async function GET() {
   }
 
   const departments = Array.from(deptMap.values()).sort((a, b) => {
+    const groupA = a.phoneParent || a.department;
+    const groupB = b.phoneParent || b.department;
+    const g = groupA.localeCompare(groupB, "ko");
+    if (g !== 0) return g;
+    // 같은 상위부서 안에서는 상위부서 행을 먼저
+    if (a.kind !== b.kind) return a.kind === "parent" ? -1 : 1;
     const rank = (s: DeptAgg["status"]) =>
       s === "미작성" ? 0 : s === "작성중" ? 1 : s === "작성중·제출완료" ? 2 : 3;
     const d = rank(a.status) - rank(b.status);

@@ -21,6 +21,8 @@ type Leader = { name: string; employeeId: string };
 
 type DeptRow = {
   department: string;
+  kind?: "parent" | "unit";
+  phoneParent?: string | null;
   memberCount: number;
   leaders: Leader[];
   draftCount: number;
@@ -45,6 +47,7 @@ type RosterUser = {
   phoneDept: string | null;
   phoneExt: string | null;
   isTeamLeader: boolean;
+  matchTier?: "unit" | "parent" | "other";
 };
 
 type AuthorRow = {
@@ -164,7 +167,7 @@ export default function ScheduleAdminPage() {
     enabled: status === "authenticated" && isAdmin,
   });
 
-  const { data: rosterData, isLoading: rosterLoading } = useQuery({
+  const { data: rosterPayload, isLoading: rosterLoading } = useQuery({
     queryKey: ["admin", "users", "all", pickerDept, debouncedSearch],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -176,11 +179,62 @@ export default function ScheduleAdminPage() {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("명단을 불러오지 못했습니다.");
-      const json = (await res.json()) as { users: RosterUser[] };
-      return json.users;
+      return (await res.json()) as {
+        users: RosterUser[];
+        parentDepartment: string | null;
+      };
     },
     enabled: Boolean(pickerDept) && isAdmin,
   });
+
+  const rosterData = rosterPayload?.users;
+  const pickerParentDept = rosterPayload?.parentDepartment ?? null;
+
+  const rosterSections = useMemo(() => {
+    const users = rosterData ?? [];
+    const unit = users.filter((u) => u.matchTier === "unit");
+    const parent = users.filter((u) => u.matchTier === "parent");
+    const other = users.filter(
+      (u) => u.matchTier === "other" || !u.matchTier
+    );
+    const sections: { key: string; title: string; users: RosterUser[] }[] = [];
+    const pickingParent =
+      Boolean(pickerParentDept) && pickerDept === pickerParentDept;
+
+    if (pickingParent) {
+      const combined = [...unit, ...parent];
+      if (combined.length) {
+        sections.push({
+          key: "parent",
+          title: `상위부서 ${pickerParentDept} 명단`,
+          users: combined,
+        });
+      }
+    } else {
+      if (unit.length) {
+        sections.push({
+          key: "unit",
+          title: `${pickerDept} 명단`,
+          users: unit,
+        });
+      }
+      if (parent.length && pickerParentDept) {
+        sections.push({
+          key: "parent",
+          title: `상위부서 ${pickerParentDept} 명단`,
+          users: parent,
+        });
+      }
+    }
+    if (other.length) {
+      sections.push({
+        key: "other",
+        title: debouncedSearch ? "검색 결과" : "기타 부서",
+        users: other,
+      });
+    }
+    return sections;
+  }, [rosterData, pickerDept, pickerParentDept, debouncedSearch]);
 
   const publishMutation = useMutation({
     mutationFn: async (input: {
@@ -484,8 +538,18 @@ export default function ScheduleAdminPage() {
                       className="border-t border-slate-100 hover:bg-slate-50/80"
                     >
                       <td className="px-4 py-3 font-medium text-slate-900">
-                        {d.department}
+                        <span className="inline-flex items-center gap-1.5">
+                          {d.department}
+                          {d.kind === "parent" && (
+                            <span className="text-[10px] font-semibold tracking-wide text-[#003366] bg-[#003366]/8 px-1.5 py-0.5 rounded">
+                              상위부서
+                            </span>
+                          )}
+                        </span>
                         <span className="block text-xs text-slate-400 font-normal">
+                          {d.kind === "unit" && d.phoneParent
+                            ? `${d.phoneParent} · `
+                            : ""}
                           계정 {d.memberCount}명
                         </span>
                       </td>
@@ -704,7 +768,12 @@ export default function ScheduleAdminPage() {
                 <h4 className="text-lg font-bold text-[#003366]">
                   전체일정 담당 지정
                 </h4>
-                <p className="text-sm text-slate-500 mt-0.5">{pickerDept}</p>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {pickerDept}
+                  {pickerParentDept && pickerParentDept !== pickerDept
+                    ? ` · 상위부서 ${pickerParentDept}`
+                    : ""}
+                </p>
               </div>
               <button
                 type="button"
@@ -761,8 +830,8 @@ export default function ScheduleAdminPage() {
                 />
               </label>
               <p className="text-[11px] text-slate-400 mt-1.5">
-                엑셀 전화번호부 전체 명단입니다. 이 부서 소속이 위에 먼저
-                보이고, 검색하면 전체에서 찾을 수 있습니다.
+                이 부서 → 상위부서 명단 → 전체 순입니다. 이름으로 검색하면
+                전화번호부 전체에서 찾을 수 있습니다.
               </p>
             </div>
 
@@ -781,46 +850,58 @@ export default function ScheduleAdminPage() {
                   검색 결과가 없습니다.
                 </p>
               ) : (
-                <ul className="divide-y divide-slate-100">
-                  {(rosterData ?? []).map((u) => {
-                    const already = currentDeptLeaders.some(
-                      (l) => l.employeeId === u.employeeId
-                    );
-                    const deptLabel =
-                      u.phoneDept && u.phoneParent
-                        ? `${u.phoneDept}(${u.phoneParent})`
-                        : u.department;
-                    return (
-                      <li key={u.employeeId}>
-                        <button
-                          type="button"
-                          disabled={publishMutation.isPending || already}
-                          onClick={() =>
-                            publishMutation.mutate({
-                              employeeId: u.employeeId,
-                              canPublish: true,
-                              name: u.name,
-                            })
-                          }
-                          className="w-full text-left px-3 py-2.5 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-between gap-2"
-                        >
-                          <span>
-                            <span className="font-medium text-slate-900">
-                              {u.name}
-                            </span>
-                            <span className="block text-xs text-slate-500 mt-0.5">
-                              {deptLabel}
-                              {u.phoneExt ? ` · 내선 ${u.phoneExt}` : ""}
-                            </span>
-                          </span>
-                          <span className="text-xs font-semibold text-[#003366] shrink-0">
-                            {already ? "지정됨" : "선택"}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <div className="space-y-3">
+                  {rosterSections.map((section) => (
+                    <div key={section.key}>
+                      <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 sticky top-0 bg-white/95">
+                        {section.title}
+                        <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                          {section.users.length}명
+                        </span>
+                      </p>
+                      <ul className="divide-y divide-slate-100">
+                        {section.users.map((u) => {
+                          const already = currentDeptLeaders.some(
+                            (l) => l.employeeId === u.employeeId
+                          );
+                          const deptLabel =
+                            u.phoneDept && u.phoneParent
+                              ? `${u.phoneDept}(${u.phoneParent})`
+                              : u.department;
+                          return (
+                            <li key={u.employeeId}>
+                              <button
+                                type="button"
+                                disabled={publishMutation.isPending || already}
+                                onClick={() =>
+                                  publishMutation.mutate({
+                                    employeeId: u.employeeId,
+                                    canPublish: true,
+                                    name: u.name,
+                                  })
+                                }
+                                className="w-full text-left px-3 py-2.5 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-between gap-2"
+                              >
+                                <span>
+                                  <span className="font-medium text-slate-900">
+                                    {u.name}
+                                  </span>
+                                  <span className="block text-xs text-slate-500 mt-0.5">
+                                    {deptLabel}
+                                    {u.phoneExt ? ` · 내선 ${u.phoneExt}` : ""}
+                                  </span>
+                                </span>
+                                <span className="text-xs font-semibold text-[#003366] shrink-0">
+                                  {already ? "지정됨" : "선택"}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
