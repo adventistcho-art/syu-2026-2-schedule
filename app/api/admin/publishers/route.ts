@@ -6,11 +6,13 @@ import { getSessionUser } from "@/lib/auth";
 const bodySchema = z.object({
   employeeId: z.string().min(1),
   canPublish: z.boolean(),
+  /** 지정 대상 부서(실무부서) — 해당 부서 소속인지 검증 */
+  department: z.string().optional(),
 });
 
 /**
  * PATCH /api/admin/publishers
- * 관리자 — 전화번호부 F열과 동일하게 전체일정 담당(isTeamLeader) 지정/해제
+ * 관리자 — 전체일정 담당(isTeamLeader) 지정/해제
  */
 export async function PATCH(req: NextRequest) {
   const user = await getSessionUser();
@@ -50,6 +52,21 @@ export async function PATCH(req: NextRequest) {
       { error: "관리자 계정은 변경할 수 없습니다." },
       { status: 400 }
     );
+  }
+
+  const dept = (parsed.data.department || "").trim();
+  if (dept && parsed.data.canPublish) {
+    const inDept =
+      (target.department || "").trim() === dept ||
+      (target.phoneDept || "").trim() === dept;
+    if (!inDept) {
+      return NextResponse.json(
+        {
+          error: `선택한 계정이 「${dept}」 소속이 아닙니다. 해당 부서 명단에서 다시 선택하세요.`,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const updated = await prisma.user.update({

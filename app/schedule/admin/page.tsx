@@ -182,17 +182,51 @@ export default function ScheduleAdminPage() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: async (input: { employeeId: string; canPublish: boolean }) => {
+    mutationFn: async (input: {
+      employeeId: string;
+      canPublish: boolean;
+      name?: string;
+    }) => {
       const res = await fetch("/api/admin/publishers", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        credentials: "include",
+        body: JSON.stringify({
+          employeeId: input.employeeId,
+          canPublish: input.canPublish,
+          department: pickerDept ?? undefined,
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "저장에 실패했습니다.");
       return json as { user: RosterUser };
     },
     onSuccess: async (_data, vars) => {
+      // 표에 즉시 반영
+      queryClient.setQueryData<AdminPayload>(
+        ["admin", "schedule-status"],
+        (prev) => {
+          if (!prev || !pickerDept) return prev;
+          return {
+            ...prev,
+            departments: prev.departments.map((d) => {
+              if (d.department !== pickerDept) return d;
+              const leaders = vars.canPublish
+                ? d.leaders.some((l) => l.employeeId === vars.employeeId)
+                  ? d.leaders
+                  : [
+                      ...d.leaders,
+                      {
+                        employeeId: vars.employeeId,
+                        name: vars.name || _data.user.name,
+                      },
+                    ]
+                : d.leaders.filter((l) => l.employeeId !== vars.employeeId);
+              return { ...d, leaders };
+            }),
+          };
+        }
+      );
       setPickerMsg(
         vars.canPublish
           ? "전체일정 담당으로 지정했습니다."
@@ -202,6 +236,9 @@ export default function ScheduleAdminPage() {
         queryKey: ["admin", "schedule-status"],
       });
       await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      if (vars.canPublish) {
+        setTimeout(() => setPickerDept(null), 600);
+      }
     },
     onError: (err) => setPickerMsg((err as Error).message),
   });
@@ -697,6 +734,7 @@ export default function ScheduleAdminPage() {
                           publishMutation.mutate({
                             employeeId: l.employeeId,
                             canPublish: false,
+                            name: l.name,
                           })
                         }
                         className="text-emerald-700/70 hover:text-red-600"
@@ -760,6 +798,7 @@ export default function ScheduleAdminPage() {
                             publishMutation.mutate({
                               employeeId: u.employeeId,
                               canPublish: true,
+                              name: u.name,
                             })
                           }
                           className="w-full text-left px-3 py-2.5 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-between gap-2"

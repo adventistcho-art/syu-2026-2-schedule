@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 /**
  * GET /api/admin/users?q=&department=
@@ -21,26 +22,29 @@ export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   const department = (req.nextUrl.searchParams.get("department") || "").trim();
 
+  const and: Prisma.UserWhereInput[] = [{ role: { not: "ADMIN" } }];
+
+  if (department) {
+    and.push({
+      OR: [{ department }, { phoneDept: department }],
+    });
+  }
+
+  if (q) {
+    and.push({
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { phoneExt: { contains: q } },
+        { employeeId: { contains: q, mode: "insensitive" } },
+        { department: { contains: q, mode: "insensitive" } },
+        { phoneDept: { contains: q, mode: "insensitive" } },
+        { phoneParent: { contains: q, mode: "insensitive" } },
+      ],
+    });
+  }
+
   const users = await prisma.user.findMany({
-    where: {
-      role: { not: "ADMIN" },
-      ...(department
-        ? {
-            OR: [{ department }, { phoneDept: department }],
-          }
-        : {}),
-      ...(q
-        ? {
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { phoneExt: { contains: q } },
-              { employeeId: { contains: q, mode: "insensitive" } },
-              { department: { contains: q, mode: "insensitive" } },
-              { phoneDept: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
+    where: { AND: and },
     select: {
       employeeId: true,
       name: true,
