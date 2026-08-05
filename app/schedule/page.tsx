@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
@@ -47,11 +47,6 @@ export default function SchedulePage() {
     | undefined;
   const isAdmin = user?.role === "ADMIN";
   const department = user?.department ?? "";
-  const [adminDept, setAdminDept] = useState("");
-
-  useEffect(() => {
-    if (department) setAdminDept((prev) => prev || department);
-  }, [department]);
 
   const tabs = useMemo(
     () =>
@@ -168,37 +163,9 @@ export default function SchedulePage() {
 
         {tab === "input" && (
           <div>
-            {isAdmin && (
-              <div className="max-w-3xl mx-auto mb-4 flex items-center gap-2 text-sm">
-                <label className="font-semibold text-slate-700">작업 부서</label>
-                <select
-                  value={adminDept || department}
-                  onChange={(e) => setAdminDept(e.target.value)}
-                  className="border border-slate-200 rounded-lg px-3 py-1.5"
-                >
-                  {[
-                    "교무처",
-                    "교목처",
-                    "학생복지처",
-                    "입학처",
-                    "기획처",
-                    department,
-                  ]
-                    .filter((v, i, a) => v && a.indexOf(v) === i)
-                    .map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
-            <EventForm
-              department={isAdmin ? adminDept || department : department}
-              isAdmin={!!isAdmin}
-            />
+            <EventForm department={department} />
             <DeptEventPanel
-              department={isAdmin ? adminDept || department : department}
+              department={department}
               isAdmin={!!isAdmin}
               onSelectEvent={setSelected}
               onEditEvent={setEditing}

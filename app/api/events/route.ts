@@ -93,9 +93,9 @@ export async function POST(req: NextRequest) {
   }
 
   const data = parsed.data;
-  const dept = user.role === "ADMIN" ? data.dept : user.department;
-  // 부서 등록 일정은 항상 일반부서(DEPT)
-  const category = user.role === "ADMIN" ? data.category : "DEPT";
+  // 로그인한 부서로만 등록 (부서 선택 변경 불가)
+  const dept = user.department;
+  const category = "DEPT";
   const now = new Date();
 
   const event = await prisma.event.create({

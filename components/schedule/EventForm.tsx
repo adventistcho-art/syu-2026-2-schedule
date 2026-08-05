@@ -8,23 +8,9 @@ import { createEventSchema, type CreateEventInput } from "@/lib/schedule/schemas
 
 type Props = {
   department: string;
-  isAdmin: boolean;
 };
 
-const DEPT_OPTIONS = [
-  "교무처",
-  "교목처",
-  "학생복지처",
-  "입학처",
-  "기획처",
-  "산학협력단",
-  "총학생회",
-  "컴퓨터공학과",
-  "간호학과",
-  "기타 부서/학과",
-];
-
-export default function EventForm({ department, isAdmin }: Props) {
+export default function EventForm({ department }: Props) {
   const queryClient = useQueryClient();
   const {
     register,
@@ -58,7 +44,7 @@ export default function EventForm({ department, isAdmin }: Props) {
         body: JSON.stringify({
           ...data,
           category: "DEPT",
-          dept: isAdmin ? data.dept : department,
+          dept: department,
         }),
       });
       if (!res.ok) {
@@ -95,25 +81,15 @@ export default function EventForm({ department, isAdmin }: Props) {
       >
         <div className="md:col-span-2">
           <label className="block text-sm font-semibold mb-1">작성 부서명 *</label>
-          {isAdmin ? (
-            <select
-              {...register("dept")}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            >
-              {DEPT_OPTIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              {...register("dept")}
-              readOnly
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50"
-            />
-          )}
-          <p className="text-xs text-slate-500 mt-1">주부서 기준 (세션 연동)</p>
+          <input
+            {...register("dept")}
+            readOnly
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50"
+          />
+          <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+            현재 로그인한 부서로만 작성할 수 있습니다. 다른 부서 일정을
+            등록하려면 로그아웃 후 해당 부서로 다시 로그인해 주세요.
+          </p>
         </div>
         <input type="hidden" {...register("category")} value="DEPT" />
 
