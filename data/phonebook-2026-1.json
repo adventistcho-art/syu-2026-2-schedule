@@ -1929,9 +1929,9 @@
       "phoneDept": "기획팀",
       "phoneExt": "3395",
       "duty": "기획",
-      "canPublishToOverall": false,
-      "role": "USER",
-      "isTeamLeader": false
+      "canPublishToOverall": true,
+      "role": "ADMIN",
+      "isTeamLeader": true
     },
     {
       "employeeId": "pb_bd387acd15",

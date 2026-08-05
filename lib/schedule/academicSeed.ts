@@ -67,16 +67,13 @@ export const OFFICIAL_ACADEMIC_EVENTS: SeedEvent[] = [
   { title: "휴·복학 만기일", category: "ACADEMIC", dept: DEPT, startDate: "2027-02-26", endDate: "2027-02-26", contact: CONTACT, description: DESC },
 ];
 
-/** 관리자 계정 (전화번호부와 별도 유지) */
-export const SEED_USERS = [
-  {
-    employeeId: "admin001",
-    name: "김관리",
-    department: "기획처",
-    role: "ADMIN",
-    isTeamLeader: true,
-    phoneParent: "기획처",
-    phoneDept: "기획처",
-    phoneExt: "3390",
-  },
-];
+/**
+ * 관리자 = 전화번호부 계정과 동일 인물 (기획처 기획팀 조재림 3395)
+ * employeeId는 시드 시 phonebook JSON의 pb_* 와 맞춰 승격합니다.
+ */
+export const ADMIN_IDENTITY = {
+  name: "조재림",
+  phoneParent: "기획처",
+  phoneDept: "기획팀",
+  phoneExt: "3395",
+} as const;

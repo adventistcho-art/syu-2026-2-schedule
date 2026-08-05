@@ -181,8 +181,8 @@ export default function LoginPage() {
                 <code className="bg-white px-1.5 py-0.5 rounded">3150</code>
               </p>
               <p>
-                · 기획처(기획처) / 김관리 /{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded">3390</code>
+                · 기획팀(기획처) / 조재림 /{" "}
+                <code className="bg-white px-1.5 py-0.5 rounded">3395</code>
                 <span className="text-slate-400"> (관리자)</span>
               </p>
             </div>

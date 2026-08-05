@@ -2,7 +2,7 @@
  * 삼육대학교 성과관리종합지수 — DB 시드 스크립트
  * + 2026-2학기 공식 학사주요일정
  * + 2026-1 전화번호부 로그인 계정 (CHO 맵 미사용)
- * + 관리자 admin001 유지
+ * + 관리자: 기획처 기획팀 조재림(3395)
  *
  * 실행: npx tsx prisma/seed.ts
  */
@@ -12,7 +12,7 @@ import { PrismaClient } from "@prisma/client";
 import { REAL_INDEXES } from "../lib/realData";
 import {
   OFFICIAL_ACADEMIC_EVENTS,
-  SEED_USERS,
+  ADMIN_IDENTITY,
 } from "../lib/schedule/academicSeed";
 
 const prisma = new PrismaClient();
@@ -222,56 +222,34 @@ async function main() {
   }
   console.log("  ✅ 세션 초기화 완료\n");
 
-  // 4. 사용자 — 관리자 + 전화번호부 (CHO 맵 제거)
+  // 4. 사용자 — 전화번호부 + 관리자 승격 (CHO 맵 제거)
   console.log("👤 사용자 적재 중...");
-  const adminUsers = SEED_USERS.filter((u) => u.role === "ADMIN");
   const phonebook = loadPhonebookAccounts();
-  const keepIds = new Set<string>([
-    ...adminUsers.map((u) => u.employeeId),
-    ...phonebook.map((a) => a.employeeId),
-  ]);
+  const keepIds = new Set<string>(phonebook.map((a) => a.employeeId));
 
   const removed = await prisma.user.deleteMany({
     where: { employeeId: { notIn: Array.from(keepIds) } },
   });
-  console.log(`  🗑️ CHO/구계정 ${removed.count}명 삭제`);
+  console.log(`  🗑️ 구계정(admin001 등) ${removed.count}명 삭제`);
 
-  for (const u of adminUsers) {
-    await prisma.user.upsert({
-      where: { employeeId: u.employeeId },
-      update: {
-        name: u.name,
-        department: u.department,
-        role: u.role,
-        isTeamLeader: true,
-        phoneParent: u.phoneParent,
-        phoneDept: u.phoneDept,
-        phoneExt: u.phoneExt,
-        email: null,
-      },
-      create: {
-        employeeId: u.employeeId,
-        name: u.name,
-        department: u.department,
-        role: u.role,
-        isTeamLeader: true,
-        phoneParent: u.phoneParent,
-        phoneDept: u.phoneDept,
-        phoneExt: u.phoneExt,
-      },
-    });
-  }
-  console.log(`  ✅ 관리자 ${adminUsers.length}명`);
+  const isAdminAccount = (a: PhonebookAccount) =>
+    a.name === ADMIN_IDENTITY.name &&
+    a.phoneParent === ADMIN_IDENTITY.phoneParent &&
+    a.phoneDept === ADMIN_IDENTITY.phoneDept &&
+    a.phoneExt === ADMIN_IDENTITY.phoneExt;
 
   let pbCount = 0;
+  let adminCount = 0;
   for (const a of phonebook) {
-    const canPublish = Boolean(a.canPublishToOverall ?? a.isTeamLeader);
+    const admin = isAdminAccount(a);
+    const canPublish =
+      admin || Boolean(a.canPublishToOverall ?? a.isTeamLeader);
     await prisma.user.upsert({
       where: { employeeId: a.employeeId },
       update: {
         name: a.name,
         department: a.department,
-        role: "USER",
+        role: admin ? "ADMIN" : "USER",
         isTeamLeader: canPublish,
         email: null,
         phoneParent: a.phoneParent,
@@ -282,7 +260,7 @@ async function main() {
         employeeId: a.employeeId,
         name: a.name,
         department: a.department,
-        role: "USER",
+        role: admin ? "ADMIN" : "USER",
         isTeamLeader: canPublish,
         phoneParent: a.phoneParent,
         phoneDept: a.phoneDept,
@@ -290,8 +268,15 @@ async function main() {
       },
     });
     pbCount += 1;
+    if (admin) adminCount += 1;
   }
-  console.log(`  ✅ 전화번호부 계정 ${pbCount}명 완료\n`);
+  console.log(`  ✅ 전화번호부 계정 ${pbCount}명 (관리자 ${adminCount}명)\n`);
+
+  if (adminCount === 0) {
+    console.warn(
+      `  ⚠️ 관리자 미발견: ${ADMIN_IDENTITY.phoneDept}(${ADMIN_IDENTITY.phoneParent}) / ${ADMIN_IDENTITY.name} / ${ADMIN_IDENTITY.phoneExt}`
+    );
+  }
 
   // 5. 공식 학사주요일정 (2026.09~2027.02)
   console.log("📆 학사주요일정 시드 중...");
