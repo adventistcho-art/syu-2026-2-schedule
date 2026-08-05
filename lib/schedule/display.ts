@@ -25,9 +25,9 @@ export function categoryColorClass(category: string): string {
   );
 }
 
-/** 담당부서: 실제 부서명만 (공휴일/구분성 값 제외) */
+/** 담당부서: 실제 부서명만 (학사일정·공휴일/구분성 값 제외) */
 export function displayDept(event: Pick<ScheduleEvent, "dept" | "category">): string {
-  if (event.category === "HOLIDAY") return "-";
+  if (event.category === "HOLIDAY" || event.category === "ACADEMIC") return "-";
   const dept = (event.dept || "").trim();
   if (!dept || NON_DEPT_LABELS.has(dept)) return "-";
   return dept;

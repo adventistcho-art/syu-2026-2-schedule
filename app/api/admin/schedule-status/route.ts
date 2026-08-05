@@ -95,7 +95,13 @@ export async function GET() {
 
   for (const e of events) {
     const dept = (e.dept || "").trim();
-    if (!isTrackedDept(dept) || e.category === "HOLIDAY") continue;
+    if (
+      !isTrackedDept(dept) ||
+      e.category === "HOLIDAY" ||
+      e.category === "ACADEMIC"
+    ) {
+      continue;
+    }
     if (seen.has(`parent:${dept}`) || seen.has(`unit:${dept}`)) continue;
     const kind = parentNames.has(dept) ? "parent" : "unit";
     deptKeys.push({
@@ -175,7 +181,13 @@ export async function GET() {
 
   for (const e of events) {
     const dept = (e.dept || "").trim();
-    if (!isTrackedDept(dept) || e.category === "HOLIDAY") continue;
+    if (
+      !isTrackedDept(dept) ||
+      e.category === "HOLIDAY" ||
+      e.category === "ACADEMIC"
+    ) {
+      continue;
+    }
 
     const tracked = isTrackedAuthor(e.createdByName, e.createdById);
     let agg = deptMap.get(dept);
