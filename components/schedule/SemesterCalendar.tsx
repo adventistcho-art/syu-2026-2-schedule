@@ -191,12 +191,21 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
           </div>
 
           <div className="flex flex-wrap gap-3 justify-center mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
-            {(Object.keys(CATEGORY_LABEL) as EventCategory[]).map((k) => (
-              <span key={k} className="inline-flex items-center gap-1">
-                <span className={`w-2.5 h-2.5 rounded-sm ${CATEGORY_COLORS[k]}`} />
-                {CATEGORY_LABEL[k]}
-              </span>
-            ))}
+            {(
+              Object.keys(CATEGORY_LABEL) as EventCategory[]
+            )
+              .filter(
+                (k) =>
+                  k !== "CHAPEL" && k !== "STUDENT" && k !== "ADMISSION"
+              )
+              .map((k) => (
+                <span key={k} className="inline-flex items-center gap-1">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-sm ${CATEGORY_COLORS[k]}`}
+                  />
+                  {CATEGORY_LABEL[k]}
+                </span>
+              ))}
           </div>
         </div>
       </div>
