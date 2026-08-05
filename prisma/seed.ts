@@ -12,7 +12,6 @@ import { PrismaClient } from "@prisma/client";
 import { REAL_INDEXES } from "../lib/realData";
 import {
   OFFICIAL_ACADEMIC_EVENTS,
-  DUMMY_DEPT_EVENTS,
   SEED_USERS,
 } from "../lib/schedule/academicSeed";
 
@@ -314,32 +313,6 @@ async function main() {
     })),
   });
   console.log(`  ✅ ${OFFICIAL_ACADEMIC_EVENTS.length}건 공식 일정 완료\n`);
-
-  // 6. 부서 더미 일정 (초안 + 제출분)
-  console.log("🧪 부서 더미 일정 적재 중...");
-  await prisma.event.createMany({
-    data: DUMMY_DEPT_EVENTS.map((e) => ({
-      title: e.title,
-      category: e.category,
-      dept: e.dept,
-      startDate: new Date(`${e.startDate}T00:00:00.000Z`),
-      endDate: new Date(`${e.endDate}T23:59:59.999Z`),
-      location: e.location ?? null,
-      contact: e.contact ?? null,
-      description: e.description ?? null,
-      status: e.status,
-      createdById: e.createdById,
-      createdByName: e.createdByName,
-      publishedAt: e.status === "PUBLISHED" ? new Date() : null,
-    })),
-  });
-  const draftCount = DUMMY_DEPT_EVENTS.filter((e) => e.status === "DRAFT").length;
-  const publishedDummy = DUMMY_DEPT_EVENTS.filter(
-    (e) => e.status === "PUBLISHED"
-  ).length;
-  console.log(
-    `  ✅ 더미 ${DUMMY_DEPT_EVENTS.length}건 (초안 ${draftCount} / 제출 ${publishedDummy})\n`
-  );
 
   console.log("🎉 시드 완료!");
   const counts = {
