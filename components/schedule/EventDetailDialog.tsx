@@ -96,10 +96,10 @@ export default function EventDetailDialog({
           <div className="p-3 bg-slate-50 rounded-lg">
             <p className="flex items-center gap-2 font-semibold mb-1">
               <FileText className="w-4 h-4 text-slate-400" />
-              상세 내용
+              사업개요
             </p>
             <p className="text-slate-600 whitespace-pre-wrap">
-              {event.description || "상세 정보가 없습니다."}
+              {event.description || "사업개요가 없습니다."}
             </p>
           </div>
         </div>
