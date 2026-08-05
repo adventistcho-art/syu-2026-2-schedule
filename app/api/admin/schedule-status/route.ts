@@ -85,7 +85,7 @@ export async function GET() {
   type DeptAgg = {
     department: string;
     memberCount: number;
-    leaders: string[];
+    leaders: { name: string; employeeId: string }[];
     draftCount: number;
     publishedCount: number;
     /** 부서가 작성한 일정(시드/공휴일 제외) */
@@ -104,7 +104,9 @@ export async function GET() {
     deptMap.set(dept, {
       department: dept,
       memberCount: members.length,
-      leaders: members.filter((m) => m.isTeamLeader).map((m) => m.name),
+      leaders: members
+        .filter((m) => m.isTeamLeader)
+        .map((m) => ({ name: m.name, employeeId: m.employeeId })),
       draftCount: 0,
       publishedCount: 0,
       authoredCount: 0,

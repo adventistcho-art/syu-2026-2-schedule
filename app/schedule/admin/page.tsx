@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession, signOut } from "next-auth/react";
 import {
   ArrowLeft,
@@ -12,14 +12,17 @@ import {
   LogOut,
   Search,
   UserRound,
+  X,
 } from "lucide-react";
 import { categoryLabel } from "@/lib/schedule/display";
 import { formatPeriod } from "@/lib/schedule/types";
 
+type Leader = { name: string; employeeId: string };
+
 type DeptRow = {
   department: string;
   memberCount: number;
-  leaders: string[];
+  leaders: Leader[];
   draftCount: number;
   publishedCount: number;
   authoredCount: number;
@@ -32,6 +35,16 @@ type DeptRow = {
   }[];
   lastActivityAt: string | null;
   lastPublishedAt: string | null;
+};
+
+type RosterUser = {
+  employeeId: string;
+  name: string;
+  department: string;
+  phoneParent: string | null;
+  phoneDept: string | null;
+  phoneExt: string | null;
+  isTeamLeader: boolean;
 };
 
 type AuthorRow = {
@@ -111,12 +124,17 @@ function formatDateTime(iso: string | null) {
 }
 
 export default function ScheduleAdminPage() {
+  const queryClient = useQueryClient();
   const { data: session, status } = useSession();
   const [tab, setTab] = useState<ViewTab>("departments");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | DeptRow["status"]>(
     "ALL"
   );
+  const [pickerDept, setPickerDept] = useState<string | null>(null);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pickerMsg, setPickerMsg] = useState<string | null>(null);
 
   const user = session?.user as
     | {
@@ -127,10 +145,65 @@ export default function ScheduleAdminPage() {
     | undefined;
   const isAdmin = user?.role === "ADMIN";
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(pickerSearch.trim()), 250);
+    return () => clearTimeout(t);
+  }, [pickerSearch]);
+
+  useEffect(() => {
+    if (!pickerDept) {
+      setPickerSearch("");
+      setDebouncedSearch("");
+      setPickerMsg(null);
+    }
+  }, [pickerDept]);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "schedule-status"],
     queryFn: fetchAdminStatus,
     enabled: status === "authenticated" && isAdmin,
+  });
+
+  const { data: rosterData, isLoading: rosterLoading } = useQuery({
+    queryKey: ["admin", "users", pickerDept, debouncedSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (pickerDept) params.set("department", pickerDept);
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      const res = await fetch(`/api/admin/users?${params}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("명단을 불러오지 못했습니다.");
+      const json = (await res.json()) as { users: RosterUser[] };
+      return json.users;
+    },
+    enabled: Boolean(pickerDept) && isAdmin,
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: async (input: { employeeId: string; canPublish: boolean }) => {
+      const res = await fetch("/api/admin/publishers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "저장에 실패했습니다.");
+      return json as { user: RosterUser };
+    },
+    onSuccess: async (_data, vars) => {
+      setPickerMsg(
+        vars.canPublish
+          ? "전체일정 담당으로 지정했습니다."
+          : "전체일정 담당을 해제했습니다."
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["admin", "schedule-status"],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+    onError: (err) => setPickerMsg((err as Error).message),
   });
 
   const filteredDepts = useMemo(() => {
@@ -141,7 +214,7 @@ export default function ScheduleAdminPage() {
       if (!query) return true;
       const hay = [
         d.department,
-        ...d.leaders,
+        ...d.leaders.map((l) => l.name),
         ...d.authors.map((a) => a.name),
       ]
         .join(" ")
@@ -149,6 +222,13 @@ export default function ScheduleAdminPage() {
       return hay.includes(query);
     });
   }, [data?.departments, q, statusFilter]);
+
+  const currentDeptLeaders = useMemo(() => {
+    if (!pickerDept) return [] as Leader[];
+    return (
+      data?.departments.find((d) => d.department === pickerDept)?.leaders ?? []
+    );
+  }, [data?.departments, pickerDept]);
 
   const filteredAuthors = useMemo(() => {
     const list = data?.authors ?? [];
@@ -405,8 +485,23 @@ export default function ScheduleAdminPage() {
                           </ul>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {d.leaders.length ? d.leaders.join(", ") : "-"}
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setPickerDept(d.department)}
+                          className="text-left w-full min-h-[1.75rem] rounded-md px-1.5 py-0.5 -mx-1.5 hover:bg-[#003366]/5 hover:text-[#003366] transition-colors"
+                          title="클릭하여 전체일정 담당 지정"
+                        >
+                          {d.leaders.length ? (
+                            <span className="text-slate-800 font-medium">
+                              {d.leaders.map((l) => l.name).join(", ")}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 underline decoration-dotted">
+                              선택
+                            </span>
+                          )}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                         {formatDateTime(d.lastActivityAt)}
@@ -554,9 +649,143 @@ export default function ScheduleAdminPage() {
 
         <p className="text-xs text-slate-500 mt-4">
           · 「제출」은 부서 초안을 전체일정으로 보낸(PUBLISHED) 건입니다. ·
-          공식 학사력·공휴일·시스템 작성은 취합 현황에서 제외됩니다.
+          공식 학사력·공휴일·시스템 작성은 취합 현황에서 제외됩니다. ·
+          「전체일정 담당」칸을 눌러 명단에서 지정할 수 있습니다.
         </p>
       </main>
+
+      {pickerDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-lg bg-white rounded-xl shadow-xl border border-slate-200 max-h-[85vh] flex flex-col"
+          >
+            <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-lg font-bold text-[#003366]">
+                  전체일정 담당 지정
+                </h4>
+                <p className="text-sm text-slate-500 mt-0.5">{pickerDept}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickerDept(null)}
+                className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                aria-label="닫기"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-3 border-b border-slate-100 space-y-2">
+              <p className="text-xs font-semibold text-slate-600">현재 담당</p>
+              {currentDeptLeaders.length === 0 ? (
+                <p className="text-sm text-slate-400">지정된 담당자가 없습니다.</p>
+              ) : (
+                <ul className="flex flex-wrap gap-2">
+                  {currentDeptLeaders.map((l) => (
+                    <li
+                      key={l.employeeId}
+                      className="inline-flex items-center gap-1.5 text-sm bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1"
+                    >
+                      {l.name}
+                      <button
+                        type="button"
+                        disabled={publishMutation.isPending}
+                        onClick={() =>
+                          publishMutation.mutate({
+                            employeeId: l.employeeId,
+                            canPublish: false,
+                          })
+                        }
+                        className="text-emerald-700/70 hover:text-red-600"
+                        title="담당 해제"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-b border-slate-100">
+              <label className="relative block">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  placeholder="이름·내선으로 검색"
+                  autoFocus
+                  className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+                />
+              </label>
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                해당 부서 명단에서 검색해 선택하면 「전체일정 담당」에
+                반영됩니다.
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-2 py-2 min-h-[200px]">
+              {pickerMsg && (
+                <p className="mx-3 mb-2 text-sm text-[#003366] bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  {pickerMsg}
+                </p>
+              )}
+              {rosterLoading ? (
+                <p className="text-sm text-slate-400 text-center py-10">
+                  명단 불러오는 중...
+                </p>
+              ) : (rosterData ?? []).length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-10">
+                  검색 결과가 없습니다.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {(rosterData ?? []).map((u) => {
+                    const already = currentDeptLeaders.some(
+                      (l) => l.employeeId === u.employeeId
+                    );
+                    const deptLabel =
+                      u.phoneDept && u.phoneParent
+                        ? `${u.phoneDept}(${u.phoneParent})`
+                        : u.department;
+                    return (
+                      <li key={u.employeeId}>
+                        <button
+                          type="button"
+                          disabled={publishMutation.isPending || already}
+                          onClick={() =>
+                            publishMutation.mutate({
+                              employeeId: u.employeeId,
+                              canPublish: true,
+                            })
+                          }
+                          className="w-full text-left px-3 py-2.5 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-between gap-2"
+                        >
+                          <span>
+                            <span className="font-medium text-slate-900">
+                              {u.name}
+                            </span>
+                            <span className="block text-xs text-slate-500 mt-0.5">
+                              {deptLabel}
+                              {u.phoneExt ? ` · 내선 ${u.phoneExt}` : ""}
+                            </span>
+                          </span>
+                          <span className="text-xs font-semibold text-[#003366] shrink-0">
+                            {already ? "지정됨" : "선택"}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
