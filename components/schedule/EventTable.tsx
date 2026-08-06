@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import type { ScheduleEvent } from "@/lib/schedule/types";
 import { formatPeriod, toDateKey } from "@/lib/schedule/types";
@@ -12,6 +12,10 @@ import {
   displayDept,
 } from "@/lib/schedule/display";
 import { canManageEvent } from "@/lib/schedule/permissions";
+import {
+  eventMatchesDept,
+  fetchDeptOptions,
+} from "@/lib/schedule/deptFilter";
 import { useWriteAccess } from "@/lib/schedule/useWriteAccess";
 import EventEditDialog from "@/components/schedule/EventEditDialog";
 
@@ -29,22 +33,36 @@ export default function EventTable({
   onSelectEvent,
 }: Props) {
   const [query, setQuery] = useState("");
+  const [deptValue, setDeptValue] = useState("ALL");
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
   const queryClient = useQueryClient();
   const { data: writeAccess } = useWriteAccess();
   const canWrite = Boolean(writeAccess?.allowed);
 
+  const { data: deptOptions = [] } = useQuery({
+    queryKey: ["login", "dept-options"],
+    queryFn: fetchDeptOptions,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const selectedDept = useMemo(
+    () => deptOptions.find((o) => o.value === deptValue) ?? null,
+    [deptOptions, deptValue]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = [...events].sort((a, b) =>
-      toDateKey(a.startDate).localeCompare(toDateKey(b.startDate))
-    );
+    const list = [...events]
+      .filter((e) => eventMatchesDept(e, selectedDept))
+      .sort((a, b) =>
+        toDateKey(a.startDate).localeCompare(toDateKey(b.startDate))
+      );
     if (!q) return list;
     return list.filter(
       (e) =>
         e.title.toLowerCase().includes(q) || e.dept.toLowerCase().includes(q)
     );
-  }, [events, query]);
+  }, [events, query, selectedDept]);
 
   const delMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -62,12 +80,27 @@ export default function EventTable({
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
           <h3 className="font-bold text-slate-800">취합된 전체 일정 목록</h3>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="일정명/부서 검색..."
-            className="w-64 max-w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={deptValue}
+              onChange={(e) => setDeptValue(e.target.value)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 max-w-[260px]"
+              aria-label="부서별 보기"
+            >
+              <option value="ALL">전체 부서 보기</option>
+              {deptOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="일정명/부서 검색..."
+              className="w-64 max-w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

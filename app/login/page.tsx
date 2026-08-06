@@ -122,7 +122,7 @@ export default function LoginPage() {
                   htmlFor="name"
                   className="block text-sm font-medium text-slate-700 mb-2"
                 >
-                  이름
+                  성명
                 </label>
                 <input
                   id="name"

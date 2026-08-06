@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   addMonths,
   eachDayOfInterval,
@@ -21,6 +22,10 @@ import {
   type EventCategory,
 } from "@/lib/schedule/constants";
 import { categoryColorClass, categoryLabel } from "@/lib/schedule/display";
+import {
+  eventMatchesDept,
+  fetchDeptOptions,
+} from "@/lib/schedule/deptFilter";
 
 type Props = {
   events: ScheduleEvent[];
@@ -33,6 +38,18 @@ const MAX_MONTH = new Date(2027, 1, 1);
 export default function SemesterCalendar({ events, onSelectEvent }: Props) {
   const [current, setCurrent] = useState(MIN_MONTH);
   const [category, setCategory] = useState<"ALL" | EventCategory>("ALL");
+  const [deptValue, setDeptValue] = useState("ALL");
+
+  const { data: deptOptions = [] } = useQuery({
+    queryKey: ["login", "dept-options"],
+    queryFn: fetchDeptOptions,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const selectedDept = useMemo(
+    () => deptOptions.find((o) => o.value === deptValue) ?? null,
+    [deptOptions, deptValue]
+  );
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(current), { weekStartsOn: 0 });
@@ -40,16 +57,28 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
     return eachDayOfInterval({ start, end });
   }, [current]);
 
+  const filteredEvents = useMemo(
+    () => events.filter((e) => eventMatchesDept(e, selectedDept)),
+    [events, selectedDept]
+  );
+
   const monthEvents = useMemo(() => {
     const prefix = format(current, "yyyy-MM");
-    return events
+    return filteredEvents
       .filter((e) => {
+        if (category !== "ALL" && e.category !== category) return false;
         const s = toDateKey(e.startDate);
         const en = toDateKey(e.endDate);
-        return s.startsWith(prefix) || en.startsWith(prefix) || (s < `${prefix}-01` && en > `${prefix}-28`);
+        return (
+          s.startsWith(prefix) ||
+          en.startsWith(prefix) ||
+          (s < `${prefix}-01` && en > `${prefix}-28`)
+        );
       })
-      .sort((a, b) => toDateKey(a.startDate).localeCompare(toDateKey(b.startDate)));
-  }, [events, current]);
+      .sort((a, b) =>
+        toDateKey(a.startDate).localeCompare(toDateKey(b.startDate))
+      );
+  }, [filteredEvents, current, category]);
 
   const changeMonth = (delta: number) => {
     const next = addMonths(current, delta);
@@ -82,18 +111,35 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as "ALL" | EventCategory)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5"
-          >
-            <option value="ALL">전체 구분 보기</option>
-            {(Object.keys(CATEGORY_LABEL) as EventCategory[]).map((k) => (
-              <option key={k} value={k}>
-                {CATEGORY_LABEL[k]}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={deptValue}
+              onChange={(e) => setDeptValue(e.target.value)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 max-w-[260px]"
+              aria-label="부서별 보기"
+            >
+              <option value="ALL">전체 부서 보기</option>
+              {deptOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={category}
+              onChange={(e) =>
+                setCategory(e.target.value as "ALL" | EventCategory)
+              }
+              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5"
+            >
+              <option value="ALL">전체 구분 보기</option>
+              {(Object.keys(CATEGORY_LABEL) as EventCategory[]).map((k) => (
+                <option key={k} value={k}>
+                  {CATEGORY_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="p-3">
@@ -113,12 +159,12 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
               const key = format(day, "yyyy-MM-dd");
               const inMonth = isSameMonth(day, current);
               const dow = day.getDay();
-              const holidays = events.filter(
+              const holidays = filteredEvents.filter(
                 (e) =>
                   e.category === "HOLIDAY" &&
                   isDateInRange(key, e.startDate, e.endDate)
               );
-              const dayEvents = events.filter((e) => {
+              const dayEvents = filteredEvents.filter((e) => {
                 if (e.category === "HOLIDAY") return false;
                 if (category !== "ALL" && e.category !== category) return false;
                 return isDateInRange(key, e.startDate, e.endDate);
