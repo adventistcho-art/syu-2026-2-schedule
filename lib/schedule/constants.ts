@@ -20,7 +20,7 @@ export const CATEGORY_COLORS: Record<EventCategory, string> = {
   CHAPEL: "bg-[#2b8a3e] text-white",
   STUDENT: "bg-[#e8590c] text-white",
   ADMISSION: "bg-[#6741d9] text-white",
-  DEPT: "bg-[#495057] text-white",
+  DEPT: "bg-[#0f766e] text-white",
   HOLIDAY: "bg-red-600 text-white",
 };
 

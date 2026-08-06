@@ -26,6 +26,7 @@ import {
   eventMatchesDept,
   fetchDeptOptions,
 } from "@/lib/schedule/deptFilter";
+import DayEventsModal from "@/components/schedule/DayEventsModal";
 
 type Props = {
   events: ScheduleEvent[];
@@ -38,6 +39,10 @@ const MAX_MONTH = new Date(2027, 1, 1);
 export default function SemesterCalendar({ events, onSelectEvent }: Props) {
   const [current, setCurrent] = useState(MIN_MONTH);
   const [deptValue, setDeptValue] = useState("ALL");
+  const [dayModal, setDayModal] = useState<{
+    dateKey: string;
+    events: ScheduleEvent[];
+  } | null>(null);
 
   const { data: deptOptions = [] } = useQuery({
     queryKey: ["login", "dept-options"],
@@ -150,6 +155,13 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
                 if (e.category === "HOLIDAY") return false;
                 return isDateInRange(key, e.startDate, e.endDate);
               });
+              const allDayEvents = [...holidays, ...dayEvents].sort((a, b) =>
+                toDateKey(a.startDate).localeCompare(toDateKey(b.startDate))
+              );
+              const openDayModal = () => {
+                if (allDayEvents.length === 0) return;
+                setDayModal({ dateKey: key, events: allDayEvents });
+              };
 
               return (
                 <div
@@ -180,31 +192,45 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
                   </div>
                   <div className="space-y-0.5">
                     {holidays.slice(0, 1).map((ev) => (
-                        <button
-                          key={`h-${ev.id}-${key}`}
-                          type="button"
-                          title={`[공휴일] ${ev.title}`}
-                          onClick={() => onSelectEvent(ev)}
-                          className={`block w-full text-left text-[10px] px-1 py-0.5 rounded truncate ${CATEGORY_COLORS.HOLIDAY}`}
-                        >
-                          {ev.title}
-                        </button>
-                      ))}
+                      <button
+                        key={`h-${ev.id}-${key}`}
+                        type="button"
+                        title={`[공휴일] ${ev.title}`}
+                        onClick={() => onSelectEvent(ev)}
+                        className={`block w-full text-left text-[10px] px-1 py-0.5 rounded truncate ${CATEGORY_COLORS.HOLIDAY}`}
+                      >
+                        {ev.title}
+                      </button>
+                    ))}
                     {dayEvents.slice(0, 3).map((ev) => (
                       <button
                         key={`${ev.id}-${key}`}
                         type="button"
-                        title={`[${categoryLabel(ev.category)}] ${ev.title}`}
-                        onClick={() => onSelectEvent(ev)}
+                        title={
+                          ev.category === "DEPT"
+                            ? `[일반부서] ${ev.title} · 클릭 시 이날 전체 일정`
+                            : `[${categoryLabel(ev.category)}] ${ev.title}`
+                        }
+                        onClick={() => {
+                          if (ev.category === "DEPT") {
+                            openDayModal();
+                          } else {
+                            onSelectEvent(ev);
+                          }
+                        }}
                         className={`block w-full text-left text-[10px] px-1 py-0.5 rounded truncate ${CATEGORY_COLORS[ev.category]}`}
                       >
                         {ev.title}
                       </button>
                     ))}
                     {dayEvents.length > 3 && (
-                      <p className="text-[10px] text-slate-500 px-1">
-                        +{dayEvents.length - 3}
-                      </p>
+                      <button
+                        type="button"
+                        onClick={openDayModal}
+                        className="text-[10px] text-teal-700 font-semibold px-1 hover:underline"
+                      >
+                        +{dayEvents.length - 3} 더보기
+                      </button>
                     )}
                   </div>
                 </div>
@@ -271,8 +297,16 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
           <p className="font-bold text-slate-700">부서별 입력 안내</p>
           <p>입력된 일정은 실시간 통합 캘린더에 반영됩니다.</p>
           <p>본인 주부서 일정만 등록·삭제할 수 있습니다.</p>
+          <p>일반부서(청록) 일정을 클릭하면 해당 날짜의 전체 일정을 볼 수 있습니다.</p>
         </div>
       </div>
+
+      <DayEventsModal
+        dateKey={dayModal?.dateKey ?? null}
+        events={dayModal?.events ?? []}
+        onClose={() => setDayModal(null)}
+        onSelectEvent={onSelectEvent}
+      />
     </div>
   );
 }
