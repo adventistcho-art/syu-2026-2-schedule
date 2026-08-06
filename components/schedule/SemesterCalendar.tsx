@@ -37,7 +37,6 @@ const MAX_MONTH = new Date(2027, 1, 1);
 
 export default function SemesterCalendar({ events, onSelectEvent }: Props) {
   const [current, setCurrent] = useState(MIN_MONTH);
-  const [category, setCategory] = useState<"ALL" | EventCategory>("ALL");
   const [deptValue, setDeptValue] = useState("ALL");
 
   const { data: deptOptions = [] } = useQuery({
@@ -66,7 +65,6 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
     const prefix = format(current, "yyyy-MM");
     return filteredEvents
       .filter((e) => {
-        if (category !== "ALL" && e.category !== category) return false;
         const s = toDateKey(e.startDate);
         const en = toDateKey(e.endDate);
         return (
@@ -78,7 +76,7 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
       .sort((a, b) =>
         toDateKey(a.startDate).localeCompare(toDateKey(b.startDate))
       );
-  }, [filteredEvents, current, category]);
+  }, [filteredEvents, current]);
 
   const changeMonth = (delta: number) => {
     const next = addMonths(current, delta);
@@ -111,35 +109,19 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={deptValue}
-              onChange={(e) => setDeptValue(e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 max-w-[260px]"
-              aria-label="부서별 보기"
-            >
-              <option value="ALL">전체 부서 보기</option>
-              {deptOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value as "ALL" | EventCategory)
-              }
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5"
-            >
-              <option value="ALL">전체 구분 보기</option>
-              {(Object.keys(CATEGORY_LABEL) as EventCategory[]).map((k) => (
-                <option key={k} value={k}>
-                  {CATEGORY_LABEL[k]}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={deptValue}
+            onChange={(e) => setDeptValue(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 max-w-[260px]"
+            aria-label="부서별 보기"
+          >
+            <option value="ALL">전체 부서 보기</option>
+            {deptOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="p-3">
@@ -166,7 +148,6 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
               );
               const dayEvents = filteredEvents.filter((e) => {
                 if (e.category === "HOLIDAY") return false;
-                if (category !== "ALL" && e.category !== category) return false;
                 return isDateInRange(key, e.startDate, e.endDate);
               });
 
@@ -198,12 +179,7 @@ export default function SemesterCalendar({ events, onSelectEvent }: Props) {
                     )}
                   </div>
                   <div className="space-y-0.5">
-                    {(category === "ALL" || category === "HOLIDAY"
-                      ? holidays
-                      : []
-                    )
-                      .slice(0, category === "HOLIDAY" ? 3 : 1)
-                      .map((ev) => (
+                    {holidays.slice(0, 1).map((ev) => (
                         <button
                           key={`h-${ev.id}-${key}`}
                           type="button"
